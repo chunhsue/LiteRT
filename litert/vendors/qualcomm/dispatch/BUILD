@@ -88,6 +88,9 @@ cc_test(
         "no_oss",
         "notap",
     ],
+    data = [
+        ":dispatch_api_so",
+    ],
     deps = [
         ":dispatch_api",
         "@com_google_googletest//:gtest_main",
