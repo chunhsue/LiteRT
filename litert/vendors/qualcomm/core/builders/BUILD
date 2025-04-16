@@ -79,6 +79,40 @@ cc_library(
 )
 
 cc_library(
+    name = "convert_uint16_to_int16_builder",
+    srcs = ["convert_uint16_to_int16_builder.cc"],
+    hdrs = ["convert_uint16_to_int16_builder.h"],
+    tags = [
+        # Don't build/test in OS until qnn is available.
+        "nobuilder",
+    ],
+    deps = [
+        ":op_builder",
+        "//litert/vendors/qualcomm/core:tensor_pool",
+        "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
+        "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
+        # copybara:uncomment "//third_party/qairt/latest:qnn_lib_headers",
+    ],
+)
+
+cc_library(
+    name = "convert_int16_to_uint16_builder",
+    srcs = ["convert_int16_to_uint16_builder.cc"],
+    hdrs = ["convert_int16_to_uint16_builder.h"],
+    tags = [
+        # Don't build/test in OS until qnn is available.
+        "nobuilder",
+    ],
+    deps = [
+        ":op_builder",
+        "//litert/vendors/qualcomm/core:tensor_pool",
+        "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
+        "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
+        # copybara:uncomment "//third_party/qairt/latest:qnn_lib_headers",
+    ],
+)
+
+cc_library(
     name = "concatenation_op_builder",
     srcs = ["concatenation_op_builder.cc"],
     hdrs = ["concatenation_op_builder.h"],

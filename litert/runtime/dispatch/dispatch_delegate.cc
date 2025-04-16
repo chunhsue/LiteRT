@@ -91,8 +91,9 @@ class DispatchDelegate : public tflite::SimpleOpaqueDelegateInterface {
 bool DispatchDelegate::IsNodeSupportedByDelegate(
     const TfLiteOperator* op, const TfLiteOpaqueNode* node,
     TfLiteOpaqueContext* context) const {
-  auto custom_name = absl::string_view(TfLiteOperatorGetCustomName(op));
-  return custom_name == ::litert::internal::kLiteRtDispatchOpCustomName;
+  return true;
+  //     auto custom_name = absl::string_view(TfLiteOperatorGetCustomName(op));
+  // return custom_name == ::litert::internal::kLiteRtDispatchOpCustomName;
 }
 
 TfLiteStatus DispatchDelegate::Initialize(TfLiteOpaqueContext* context) {

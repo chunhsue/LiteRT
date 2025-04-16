@@ -42,6 +42,8 @@
 #include "litert/vendors/qualcomm/core/builders/cast_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/concatenation_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/conv2d_op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/convert_uint16_to_int16_builder.h"
+#include "litert/vendors/qualcomm/core/builders/convert_int16_to_uint16_builder.h"
 #include "litert/vendors/qualcomm/core/builders/cumsum_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/depthwise_conv2d_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/dynamic_update_slice_op_builder.h"
@@ -777,35 +779,65 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
   // TODO: make ConvertOp accept a vector and append OpWrapper in it.
   std::vector<::qnn::OpWrapper> graph_op_wrappers;
   std::ostringstream dump;
+  std::unordered_map<::qnn::TensorWrapper *, ::qnn::TensorWrapper *> inputs_map;
+  std::unordered_map<::qnn::TensorWrapper *, ::qnn::TensorWrapper *> outputs_map;
   for (const auto& op : graph_mapper.Graph().Ops()) {
     // Dump op info.
     dump.clear();
     Dump(*op.Get(), dump);
     std::string s = dump.str();
     LITERT_LOG(LITERT_VERBOSE, "%s", s.data());
+    // workaround int16/uint16 ops
+    std::vector<::qnn::OpWrapper> ops;
     std::vector<::qnn::TensorWrapperRef> input_tensors;
     for (const auto& input : op.Inputs()) {
-      if (const auto it = litert_tensor_to_wrapper.find(input.Get());
-          it == litert_tensor_to_wrapper.end()) {
+      if (litert_tensor_to_wrapper.count(input.Get()) == 0) {
         ::qnn::TensorWrapper* tensor_wrapper{nullptr};
         LITERT_RETURN_IF_ERROR(
             ConvertTensor(input, tensor_pool, tensor_wrapper));
         // add into map to capture re-used static tensor
         litert_tensor_to_wrapper.emplace(input.Get(), tensor_wrapper);
-        input_tensors.emplace_back(*tensor_wrapper);
+      }
+
+      ::qnn::TensorWrapper* qnn_tensor = litert_tensor_to_wrapper.at(input.Get());
+      if ((input.IsSubgraphInput() || input.IsConstant()) && qnn_tensor->GetDataType() == QNN_DATATYPE_SFIXED_POINT_16) {
+        if (inputs_map.count(qnn_tensor) == 0) {
+          LITERT_LOG(LITERT_INFO, "Generate new inputs for graph_input_tensors with several ops.");
+          ::qnn::TensorWrapper* new_input{nullptr};
+          std::vector<::qnn::OpWrapper> ops = ::qnn::BuildConvertUint16ToInt16(tensor_pool, qnn_tensor, &(new_input));
+          inputs_map.emplace(qnn_tensor, new_input);
+          std::move(ops.begin(), ops.end(), std::back_inserter(graph_op_wrappers));
+        }
+        LITERT_LOG(LITERT_INFO, "Add new inputs.");
+        input_tensors.emplace_back(*inputs_map.at(qnn_tensor));
       } else {
-        input_tensors.emplace_back(*(it->second));
+        input_tensors.emplace_back(*qnn_tensor);
       }
     }
 
     std::vector<::qnn::TensorWrapperRef> output_tensors;
+    std::vector<::qnn::OpWrapper> ops_output;
     for (const auto& output : op.Outputs()) {
       bool is_tensor_read_and_write = graph_mapper.IsTensorOutput(output.Get());
       ::qnn::TensorWrapper* tensor_wrapper{nullptr};
       LITERT_RETURN_IF_ERROR(ConvertTensor(output, tensor_pool, tensor_wrapper,
                                            is_tensor_read_and_write));
       litert_tensor_to_wrapper.emplace(output.Get(), tensor_wrapper);
-      output_tensors.emplace_back(*tensor_wrapper);
+
+      ::qnn::TensorWrapper* qnn_tensor = litert_tensor_to_wrapper.at(output.Get());
+      if ((is_tensor_read_and_write || output.IsSubgraphOutput()) && qnn_tensor->GetDataType() == QNN_DATATYPE_SFIXED_POINT_16) {
+        if (outputs_map.count(qnn_tensor) == 0) {
+          LITERT_LOG(LITERT_INFO, "Generate new outputs for graph_output_tensors with several ops.");
+          ::qnn::TensorWrapper* new_output{nullptr};
+          // Assume 1 output
+          ops_output = ::qnn::BuildConvertInt16ToUint16(tensor_pool, qnn_tensor, &(new_output));
+          outputs_map.emplace(qnn_tensor, new_output);
+        }
+        LITERT_LOG(LITERT_INFO, "Add new outputs.");
+        output_tensors.emplace_back(*outputs_map.at(qnn_tensor));
+      } else {
+        output_tensors.emplace_back(*qnn_tensor);
+      }
     }
 
     std::vector<::qnn::OpWrapper> op_wrappers;
@@ -813,6 +845,7 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
         ConvertOp(op, tensor_pool, input_tensors, output_tensors, op_wrappers));
     std::move(op_wrappers.begin(), op_wrappers.end(),
               std::back_inserter(graph_op_wrappers));
+    std::move(ops_output.begin(), ops_output.end(), std::back_inserter(graph_op_wrappers));
   }
   // Insert all tensors into Qnn graph and update the id of Qnn_Tensor_t inside.
   tensor_pool.ForEach(

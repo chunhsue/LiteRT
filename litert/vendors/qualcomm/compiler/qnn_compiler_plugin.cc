@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <stdio.h>
-
+#include <fstream>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -413,6 +413,13 @@ LiteRtStatus LiteRtCompilerPluginCompile(
                                                        result->context_bin[i]));
     LITERT_LOG(LITERT_INFO, "Context binary %d generated", i);
   }
+  LITERT_LOG(LITERT_INFO, "Save binary %d", 0);
+  const std::string output_path =
+      "/local/mnt/workspace/jiunkaiy/LiteRT/models/model_gemma3/htp_prefer/qnn_partition_0.bin";
+  std::ofstream fout(output_path, std::ios::binary);
+  fout.write(result->context_bin[0].data(),
+             static_cast<int64_t>(result->context_bin[0].size()));
+  LITERT_LOG(LITERT_INFO, "qnn_partition_0.bin generated");
   *compiled_result = result.release();
 
   return kLiteRtStatusOk;

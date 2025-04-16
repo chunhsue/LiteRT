@@ -152,6 +152,8 @@ litert_lib(
         "//litert/vendors/qualcomm/core/builders:cast_op_builder",
         "//litert/vendors/qualcomm/core/builders:concatenation_op_builder",
         "//litert/vendors/qualcomm/core/builders:conv2d_op_builder",
+        "//litert/vendors/qualcomm/core/builders:convert_uint16_to_int16_builder",
+        "//litert/vendors/qualcomm/core/builders:convert_int16_to_uint16_builder",
         "//litert/vendors/qualcomm/core/builders:cumsum_op_builder",
         "//litert/vendors/qualcomm/core/builders:depthwise_conv2d_op_builder",
         "//litert/vendors/qualcomm/core/builders:dynamic_update_slice_op_builder",

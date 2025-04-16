@@ -228,11 +228,11 @@ Expected<void> LiteRtDispatchInvocationContextT::AttachBuffer(
 }
 
 Expected<void> LiteRtDispatchInvocationContextT::Execute() {
-  for (int i = 0; i < inputs_.size(); ++i) {
-    if (inputs_[i].IsQuantU16()) {
-      ConvertToUint16(input_buffer_handles_[i], inputs_[i].GetTensorBytes());
-    }
-  }
+  // for (int i = 0; i < inputs_.size(); ++i) {
+  //   if (inputs_[i].IsQuantU16()) {
+  //     ConvertToUint16(input_buffer_handles_[i], inputs_[i].GetTensorBytes());
+  //   }
+  // }
   const size_t num_ins = inputs_.size();
   LITERT_STACK_ARRAY(Qnn_Tensor_t, inputs, num_ins, QNN_TENSOR_INIT);
   for (size_t i = 0; i < num_ins; ++i) {
@@ -252,11 +252,11 @@ Expected<void> LiteRtDispatchInvocationContextT::Execute() {
     return Unexpected(kLiteRtStatusErrorRuntimeFailure,
                       "Failed to execute graph");
   }
-  for (int i = 0; i < outputs_.size(); ++i) {
-    if (outputs_[i].IsQuantU16()) {
-      ConvertToInt16(output_buffer_handles_[i], outputs_[i].GetTensorBytes());
-    }
-  }
+  // for (int i = 0; i < outputs_.size(); ++i) {
+  //   if (outputs_[i].IsQuantU16()) {
+  //     ConvertToInt16(output_buffer_handles_[i], outputs_[i].GetTensorBytes());
+  //   }
+  // }
   return {};
 }
 
