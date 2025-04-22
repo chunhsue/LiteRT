@@ -18,7 +18,9 @@ class OpWrapper final {
  public:
   explicit OpWrapper(std::string name, const char* op_type);
 
-  OpWrapper(const OpWrapper& other) = delete;
+  OpWrapper(const OpWrapper& other);
+
+  OpWrapper& operator=(const OpWrapper& other);
 
   OpWrapper(OpWrapper&& other);
 
@@ -37,6 +39,14 @@ class OpWrapper final {
   void AddTensorParam(const char* name, const TensorWrapper& tensor);
 
   Qnn_OpConfig_t GetOpConfig();
+
+  bool IsOpType(const char* op_type) const;
+
+  std::string_view GetInputTensorName(size_t i) const;
+
+  std::string_view GetOutputTensorName(size_t i) const;
+
+  void StealOutputs(const OpWrapper& other);
 
  private:
   const char* type_name_{nullptr};
