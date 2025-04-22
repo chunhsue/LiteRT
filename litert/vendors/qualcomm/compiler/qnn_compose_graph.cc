@@ -875,7 +875,7 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
               std::back_inserter(graph_op_wrappers));
   }
   // TODO (jiunkaiy): Set this graph-to-graph transformation as a compile flag.
-  GraphToGraphTransform(graph_op_wrappers);
+  GraphToGraphTransform(graph_op_wrappers, tensor_pool);
 
   if (options.GetUseQint16AsQuint16()) {
     tensor_pool.ForEach(
