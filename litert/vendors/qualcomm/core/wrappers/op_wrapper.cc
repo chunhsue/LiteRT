@@ -3,6 +3,7 @@
 
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 
+#include <cstring>
 #include <string>
 #include <utility>
 
@@ -98,16 +99,29 @@ Qnn_OpConfig_t OpWrapper::GetOpConfig() {
   return qnn_op;
 }
 
+bool OpWrapper::IsOpType(QnnOpCode op_code) const {
+  return op_code_ == op_code;
+}
+
+const QnnOpCode& OpWrapper::GetOpCode() const { return op_code_; }
+
 bool OpWrapper::IsOpCode(QnnOpCode op_code) const {
   return op_code_ == op_code;
 }
 
 const qnn::TensorWrapper& OpWrapper::GetInputTensor(size_t i) const {
+  if (i >= input_tensors_.size()) {
+    QNN_LOG_INFO("Out-of-range %d", i);
+  }
   return input_tensors_[i].get();
 }
 
 const qnn::TensorWrapper& OpWrapper::GetOutputTensor(size_t i) const {
   return output_tensors_[i].get();
+}
+
+const qnn::TensorWrapper& OpWrapper::GetPararmTensor(size_t i) const {
+  return tensor_params_[i].GetTensor();
 }
 
 void OpWrapper::StealOutputs(const OpWrapper& other) {

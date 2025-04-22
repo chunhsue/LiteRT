@@ -94,7 +94,7 @@ TEST(MatMulConvertTest, Gemma3Prefill) {
 
   ASSERT_EQ(op_wrappers.size(), 3);
 
-  GraphToGraphTransform(op_wrappers);
+  GraphToGraphTransform(op_wrappers, tensor_pool);
 
   ASSERT_EQ(op_wrappers.size(), 2);
   ASSERT_EQ(op_wrappers[0].IsOpCode(QnnOpCode::kMatMul), true);
@@ -163,7 +163,7 @@ TEST(MatMulConvertTest, Gemma3Decode) {
 
   ASSERT_EQ(op_wrappers.size(), 2);
 
-  GraphToGraphTransform(op_wrappers);
+  GraphToGraphTransform(op_wrappers, tensor_pool);
 
   ASSERT_EQ(op_wrappers.size(), 1);
   ASSERT_EQ(op_wrappers[0].IsOpCode(QnnOpCode::kMatMul), true);
