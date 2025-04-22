@@ -6,9 +6,9 @@
 #include <cstdint>
 #include <vector>
 
+#include "QnnTypes.h"  // from @qairt
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
-#include "QnnTypes.h"  // from @qairt
 
 namespace qnn {
 
@@ -66,6 +66,16 @@ TensorWrapper& TensorPool::CloneNativeTensorFrom(
   auto& back = tensor_wrappers_.emplace_back(id, QNN_TENSOR_TYPE_NATIVE,
                                              src.GetDataType(),
                                              src.quantize_params_, dimentions);
+  return back;
+}
+
+TensorWrapper& TensorPool::CloneNativeTensorFrom(
+    const TensorWrapper& src,
+    const qnn::QuantizeParamsWrapperVariant& quant_params) {
+  const auto id = tensor_wrappers_.size();
+  auto& back = tensor_wrappers_.emplace_back(id, QNN_TENSOR_TYPE_NATIVE,
+                                             src.GetDataType(), quant_params,
+                                             src.dimentions_);
   return back;
 }
 
