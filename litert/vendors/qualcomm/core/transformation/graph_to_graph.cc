@@ -118,6 +118,23 @@ bool FuseMatMulConvert2(std::vector<OpWrapper>& ops, size_t start_id) {
     return false;
   }
 }
+constexpr std::array<QnnOpCode, 14> kGemma3MHAToSHA = {
+    QnnOpCode::kQnnOpCodeReshape,        QnnOpCode::kQnnOpCodeMatMul,
+    QnnOpCode::kQnnOpCodeMatMul,         QnnOpCode::kQnnOpCodeConcat,
+    QnnOpCode::kQnnOpCodeReshape,        QnnOpCode::kQnnOpCodeElementWiseAdd,
+    QnnOpCode::kQnnOpCodeReshape,        QnnOpCode::kQnnOpCodeSoftmax,
+    QnnOpCode::kQnnOpCodeStridedSlice,   QnnOpCode::kQnnOpCodeStridedSlice,
+    QnnOpCode::kQnnOpCodeMatMul,         QnnOpCode::kQnnOpCodeMatMul,
+    QnnOpCode::kQnnOpCodeElementWiseAdd, QnnOpCode::kQnnOpCodeReshape,
+};
+
+constexpr auto kBadMatchTableGemma3MHAToSHA =
+    create_bad_match_table(kGemma3MHAToSHA.data(), kGemma3MHAToSHA.size());
+
+bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id) {
+  QNN_LOG_INFO("TransformMHAToSHA");
+  return true;
+}
 
 }  // namespace
 
@@ -131,5 +148,8 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops) {
   Transform(ops, kMatMulConvertPattern2.data(), kMatMulConvertPattern2.size(),
             kBadMatchTableMatMulConvertPattern2, FuseMatMulConvert2);
   // TODO (jiunkaiy): MHA->SHA Transformation
+  QNN_LOG_INFO("===== MHA->SHA ===== ");
+  Transform(ops, kGemma3MHAToSHA.data(), kGemma3MHAToSHA.size(),
+            kBadMatchTableGemma3MHAToSHA, TransformMHAToSHA);
 }
 }  // namespace qnn
