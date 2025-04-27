@@ -106,6 +106,10 @@ bool OpWrapper::IsOpType(QnnOpCode qnn_op_code) const {
   return qnn_op_code_ == qnn_op_code;
 }
 
+const QnnOpCode& OpWrapper::GetOpCode() const {
+  return qnn_op_code_;
+}
+
 const qnn::TensorWrapper& OpWrapper::GetInputTensor(size_t i) const {
   return input_tensors_[i].get();
 }
