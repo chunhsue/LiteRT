@@ -18,6 +18,7 @@ cc_test(
     deps = [
         ":graph_to_graph",
         "@com_google_googletest//:gtest_main",
+        "//litert/vendors/qualcomm/core/builders:op_code",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core:tensor_pool",
@@ -36,6 +37,7 @@ cc_library(
         "nobuilder",
     ],
     deps = [
+        "//litert/vendors/qualcomm/core/builders:op_code",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         # copybara:uncomment "//third_party/qairt/latest:qnn_lib_headers",

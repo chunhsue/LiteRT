@@ -42,7 +42,7 @@ class OpWrapper final {
 
   Qnn_OpConfig_t GetOpConfig();
 
-  bool IsOpType(const char* op_type) const;
+  bool IsOpType(QnnOpCode qnn_op_code) const;
 
   const qnn::TensorWrapper& GetInputTensor(size_t i) const;
 

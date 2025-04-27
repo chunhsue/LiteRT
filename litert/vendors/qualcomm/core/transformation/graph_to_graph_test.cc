@@ -96,8 +96,8 @@ TEST(MatMulConvertTest, Gemma3Prefill) {
   GraphToGraphTransform(op_wrappers);
 
   ASSERT_EQ(op_wrappers.size(), 2);
-  ASSERT_EQ(op_wrappers[0].IsOpType(QNN_OP_MAT_MUL), true);
-  ASSERT_EQ(op_wrappers[1].IsOpType(QNN_OP_MAT_MUL), true);
+  ASSERT_EQ(op_wrappers[0].IsOpType(QnnOpCode::kQnnOpCodeMatMul), true);
+  ASSERT_EQ(op_wrappers[1].IsOpType(QnnOpCode::kQnnOpCodeMatMul), true);
 }
 
 TEST(MatMulConvertTest, Gemma3Decode) {
@@ -165,7 +165,7 @@ TEST(MatMulConvertTest, Gemma3Decode) {
   GraphToGraphTransform(op_wrappers);
 
   ASSERT_EQ(op_wrappers.size(), 1);
-  ASSERT_EQ(op_wrappers[0].IsOpType(QNN_OP_MAT_MUL), true);
+  ASSERT_EQ(op_wrappers[0].IsOpType(QnnOpCode::kQnnOpCodeMatMul), true);
 }
 }  // namespace
 }  // namespace qnn

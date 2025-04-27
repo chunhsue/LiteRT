@@ -46,7 +46,8 @@ OpWrapper::OpWrapper(OpWrapper&& other)
       tensor_params_{std::move(other.tensor_params_)},
       qnn_input_tensors_{std::move(other.qnn_input_tensors_)},
       qnn_output_tensors_{std::move(other.qnn_output_tensors_)},
-      qnn_params_{std::move(other.qnn_params_)} {}
+      qnn_params_{std::move(other.qnn_params_)},
+      qnn_op_code_{other.qnn_op_code_} {}
 
 OpWrapper::~OpWrapper() = default;
 
@@ -101,8 +102,8 @@ Qnn_OpConfig_t OpWrapper::GetOpConfig() {
   return qnn_op;
 }
 
-bool OpWrapper::IsOpType(const char* op_type) const {
-  return strcmp(type_name_, op_type) == 0;
+bool OpWrapper::IsOpType(QnnOpCode qnn_op_code) const {
+  return qnn_op_code_ == qnn_op_code;
 }
 
 const qnn::TensorWrapper& OpWrapper::GetInputTensor(size_t i) const {
