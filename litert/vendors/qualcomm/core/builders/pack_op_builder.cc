@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -23,20 +24,20 @@ std::vector<OpWrapper> BuildPackOp(TensorPool& tensor_pool,
   // pack op with only one input would violate op definition of qnn
   // we'll replace it with reshape op
   if (inputs.size() == 1) {
-    auto& op = CreateOpWrapper(res, QNN_OP_RESHAPE);
+    auto& op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
     op.AddInputTensor(inputs[0]);
     op.AddOutputTensor(outputs[0]);
     return res;
   }
 
   if (outputs[0].get().GetRank() != inputs[0].get().GetRank() + 1) {
-    auto& concat_op = CreateOpWrapper(res, QNN_OP_CONCAT);
+    auto& concat_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeConcat);
     for (const auto& input : inputs) {
       concat_op.AddInputTensor(input);
     }
     concat_op.AddOutputTensor(outputs[0]);
   } else {
-    auto& pack_op = CreateOpWrapper(res, QNN_OP_PACK);
+    auto& pack_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodePack);
     for (const auto& input : inputs) {
       pack_op.AddInputTensor(input);
     }

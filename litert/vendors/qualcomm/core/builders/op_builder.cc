@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -50,18 +51,19 @@ std::pair<std::uint32_t, std::uint32_t> ComputePaddingBeforeAfter(
   return result;
 }
 
-OpWrapper& CreateOpWrapper(std::vector<OpWrapper>& ops, const char* op_type) {
+OpWrapper& CreateOpWrapper(std::vector<OpWrapper>& ops, QnnOpCode qnn_op_code) {
   const auto op_count = ops.size();
-  const auto name = "op_type_" + std::string(op_type) + "_op_count_" +
-                    std::to_string(op_count);
-  return ops.emplace_back(std::move(name), op_type);
+  const auto name = "op_type_" + std::string(GetQnnOpType(qnn_op_code)) +
+                    "_op_count_" + std::to_string(op_count);
+  return ops.emplace_back(std::move(name), GetQnnOpType(qnn_op_code),
+                          qnn_op_code);
 }
 
 OpWrapper& CreateSimpleActivationOp(std::vector<OpWrapper>& ops,
-                                    const char* op_type,
+                                    QnnOpCode qnn_op_code,
                                     const TensorWrapper& input_tensor,
                                     const TensorWrapper& output_tensor) {
-  auto& ret = CreateOpWrapper(ops, op_type);
+  auto& ret = CreateOpWrapper(ops, qnn_op_code);
   ret.AddInputTensor(input_tensor);
   ret.AddOutputTensor(output_tensor);
   return ret;
@@ -97,11 +99,13 @@ void AddFusedActivationNode(std::vector<OpWrapper>& res,
       break;
     }
     case FusedActivationRelu: {
-      CreateSimpleActivationOp(res, QNN_OP_RELU, input_tensor, output_tensor);
+      CreateSimpleActivationOp(res, QnnOpCode::kQnnOpCodeRelu, input_tensor,
+                               output_tensor);
       break;
     }
     case FusedActivationReluN1To1: {
-      auto& activation_op = CreateOpWrapper(res, QNN_OP_RELU_MIN_MAX);
+      auto& activation_op =
+          CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReluMinMax);
       activation_op.AddInputTensor(input_tensor);
       activation_op.AddOutputTensor(output_tensor);
       activation_op.AddScalarParam<float>(QNN_OP_RELU_MIN_MAX_PARAM_MIN_VALUE,
@@ -111,7 +115,8 @@ void AddFusedActivationNode(std::vector<OpWrapper>& res,
       break;
     }
     case FusedActivationRelu6: {
-      auto& activation_op = CreateOpWrapper(res, QNN_OP_RELU_MIN_MAX);
+      auto& activation_op =
+          CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReluMinMax);
       activation_op.AddInputTensor(input_tensor);
       activation_op.AddOutputTensor(output_tensor);
       activation_op.AddScalarParam<float>(QNN_OP_RELU_MIN_MAX_PARAM_MIN_VALUE,
@@ -121,7 +126,8 @@ void AddFusedActivationNode(std::vector<OpWrapper>& res,
       break;
     }
     case FusedActivationTanh: {
-      CreateSimpleActivationOp(res, QNN_OP_TANH, input_tensor, output_tensor);
+      CreateSimpleActivationOp(res, QnnOpCode::kQnnOpCodeTanh, input_tensor,
+                               output_tensor);
       break;
     }
     default: {

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -75,7 +76,7 @@ std::vector<OpWrapper> BuildDynamicUpdateSliceOp(
   }
 
   // reduce sum
-  auto& reduce_sum_op = CreateOpWrapper(res, QNN_OP_REDUCE_SUM);
+  auto& reduce_sum_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReduceSum);
   reduce_sum_op.AddInputTensor(indices_tensor);
 
   std::vector<uint32_t> axis_data = {0};
@@ -106,7 +107,8 @@ std::vector<OpWrapper> BuildDynamicUpdateSliceOp(
       QNN_DATATYPE_INT_32, QuantizeParamsWrapperVariant{}, static_table_dims,
       table_size * sizeof(std::int32_t), table_data.data());
 
-  OpWrapper& not_equal_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_NOT_EQUAL);
+  OpWrapper& not_equal_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseNotEqual);
   not_equal_op.AddInputTensor(static_table);
   not_equal_op.AddInputTensor(one_dim_index);
 
@@ -115,7 +117,7 @@ std::vector<OpWrapper> BuildDynamicUpdateSliceOp(
   not_equal_op.AddOutputTensor(not_equal_out);
 
   // reshape not equal output to [N, 1, 1]
-  OpWrapper& reshape_op = CreateOpWrapper(res, QNN_OP_RESHAPE);
+  OpWrapper& reshape_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
 
   reshape_op.AddInputTensor(not_equal_out);
   TensorWrapper& reshape_out =
@@ -123,7 +125,8 @@ std::vector<OpWrapper> BuildDynamicUpdateSliceOp(
   reshape_op.AddOutputTensor(reshape_out);
 
   // Select
-  OpWrapper& select_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_SELECT);
+  OpWrapper& select_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseSelect);
 
   select_op.AddInputTensor(reshape_out);
   select_op.AddInputTensor(input_tensor);

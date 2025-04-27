@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -83,11 +84,9 @@ std::vector<OpWrapper> BuildBroadcastToOp(
     return res;
   }
 
-  const char* qnn_op = nullptr;
+  QnnOpCode qnn_op = QnnOpCode::kQnnOpCodeElementWiseAdd;
   if (inputs[0].get().GetDataType() == QNN_DATATYPE_BOOL_8) {
-    qnn_op = QNN_OP_ELEMENT_WISE_OR;
-  } else {
-    qnn_op = QNN_OP_ELEMENT_WISE_ADD;
+    qnn_op = QnnOpCode::kQnnOpCodeElementWiseOr;
   }
 
   auto& broadcast_op = CreateOpWrapper(res, qnn_op);

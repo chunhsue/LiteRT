@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -87,14 +88,15 @@ std::vector<OpWrapper> BuildConv2dOp(
         sizeof(decltype(permute_data)::value_type) * permute_data.size(),
         permute_data.data());
 
-    OpWrapper& transpose_op = CreateOpWrapper(res, QNN_OP_TRANSPOSE);
+    OpWrapper& transpose_op =
+        CreateOpWrapper(res, QnnOpCode::kQnnOpCodeTranspose);
     transpose_op.AddInputTensor(filter_tensor);
     transpose_op.AddOutputTensor(*transposed_filter_tensor);
     transpose_op.AddTensorParam(QNN_OP_TRANSPOSE_PARAM_PERM, permute_tensor);
   }
 
   // conv
-  OpWrapper& conv_op = CreateOpWrapper(res, QNN_OP_CONV_2D);
+  OpWrapper& conv_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeConv2d);
   TensorWrapper& input_tensor = inputs[kInputIndex];
   conv_op.AddInputTensor(input_tensor);
   conv_op.AddInputTensor(*transposed_filter_tensor);

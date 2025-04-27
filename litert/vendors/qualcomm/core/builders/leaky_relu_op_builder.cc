@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -42,7 +43,7 @@ std::vector<OpWrapper> BuildLeakyReluOp(
     const std::vector<TensorWrapperRef>& outputs, const float alpha) {
   std::vector<OpWrapper> res;
 
-  OpWrapper& leaky_relu_op = CreateOpWrapper(res, QNN_OP_PRELU);
+  OpWrapper& leaky_relu_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodePrelu);
   TensorWrapper& input_tensor = inputs[kInputIndex];
   leaky_relu_op.AddInputTensor(input_tensor);
   leaky_relu_op.AddOutputTensor(outputs[kOutputIndex]);

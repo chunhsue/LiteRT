@@ -22,8 +22,8 @@ void FuseMatMulConvert(std::vector<OpWrapper>& ops, size_t start_id,
       break;
     }
     if (ops[convert_id].IsOpType(QNN_OP_CONVERT) &&
-        ops[convert_id].GetInputTensorName(0) ==
-            ops[start_id].GetOutputTensorName(0)) {
+        &ops[convert_id].GetInputTensor(0) ==
+            &ops[start_id].GetOutputTensor(0)) {
       ops[start_id].StealOutputs(ops[convert_id]);
       ops.erase(ops.begin() + convert_id);
       return;

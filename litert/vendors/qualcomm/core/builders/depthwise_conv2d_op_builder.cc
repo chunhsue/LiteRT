@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -52,13 +53,14 @@ std::vector<OpWrapper> BuildDepthwiseConv2dOp(
     reshaped_filter_tensor =
         &(tensor_pool.CloneNativeTensorFrom(filter_tensor, reshape_dims));
 
-    OpWrapper& reshape_op = CreateOpWrapper(res, QNN_OP_RESHAPE);
+    OpWrapper& reshape_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
     reshape_op.AddInputTensor(filter_tensor);
     reshape_op.AddOutputTensor(*reshaped_filter_tensor);
   }
 
   // conv
-  OpWrapper& conv_op = CreateOpWrapper(res, QNN_OP_DEPTH_WISE_CONV_2D);
+  OpWrapper& conv_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeDepthWiseConv2d);
   TensorWrapper& input_tensor = inputs[kInputIndex];
   conv_op.AddInputTensor(input_tensor);
   conv_op.AddInputTensor(*reshaped_filter_tensor);

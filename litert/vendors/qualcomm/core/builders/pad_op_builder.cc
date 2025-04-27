@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -46,7 +47,7 @@ std::vector<OpWrapper> BuildPadOp(
     return res;
   }
 
-  OpWrapper& pad_op = CreateOpWrapper(res, QNN_OP_PAD);
+  OpWrapper& pad_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodePad);
   TensorWrapper& input_tensor = inputs[kInputIndex];
   pad_op.AddInputTensor(input_tensor);
   pad_op.AddOutputTensor(outputs[kOutputIndex]);

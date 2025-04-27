@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -38,7 +39,7 @@ std::vector<OpWrapper> BuildRmsNormOp(
     const std::vector<TensorWrapperRef>& outputs, const float epsilon) {
   std::vector<OpWrapper> res;
 
-  auto& rms_norm_op = CreateOpWrapper(res, QNN_OP_RMS_NORM);
+  auto& rms_norm_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeRmsNorm);
   for (const auto& input : inputs) {
     rms_norm_op.AddInputTensor(input);
   }

@@ -45,7 +45,8 @@ std::vector<OpWrapper> BuildCumsumOp(
           ? (*axis_data)[0]
           : (*axis_data)[0] + inputs[kInputIndex].get().GetRank();
 
-  OpWrapper& cumsum_op = CreateOpWrapper(res, QNN_OP_CUMULATIVE_SUM);
+  OpWrapper& cumsum_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeCumulativeSum);
   cumsum_op.AddInputTensor(inputs[kInputIndex]);
   cumsum_op.AddOutputTensor(outputs[kOutputIndex]);
   cumsum_op.AddScalarParam<std::uint32_t>(QNN_OP_CUMULATIVE_SUM_PARAM_AXIS,

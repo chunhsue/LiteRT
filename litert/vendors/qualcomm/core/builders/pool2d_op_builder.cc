@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -26,7 +27,7 @@ constexpr size_t kHeightIndex = 1;
 constexpr size_t kWidthIndex = 2;
 
 std::vector<OpWrapper> BuildPool2dOp(
-    TensorPool& tensor_pool, const char* op_type, const char* filter_param_name,
+    TensorPool& tensor_pool, QnnOpCode op_code, const char* filter_param_name,
     const char* stride_param_name, const char* padding_param_name,
     const std::vector<TensorWrapperRef>& inputs,
     const std::vector<TensorWrapperRef>& outputs,
@@ -35,7 +36,7 @@ std::vector<OpWrapper> BuildPool2dOp(
     const PaddingType padding_type) {
   std::vector<OpWrapper> res;
 
-  OpWrapper& pool_op = CreateOpWrapper(res, op_type);
+  OpWrapper& pool_op = CreateOpWrapper(res, op_code);
 
   TensorWrapper& input_tensor = inputs[kInputIndex];
   pool_op.AddInputTensor(input_tensor);
@@ -90,10 +91,10 @@ std::vector<OpWrapper> BuildMaxPoolOp(
     const std::uint32_t filter_height, const std::uint32_t filter_width,
     const PaddingType padding_type) {
   return BuildPool2dOp(
-      tensor_pool, QNN_OP_POOL_MAX_2D, QNN_OP_POOL_MAX_2D_PARAM_FILTER_SIZE,
-      QNN_OP_POOL_MAX_2D_PARAM_STRIDE, QNN_OP_POOL_MAX_2D_PARAM_PAD_AMOUNT,
-      inputs, outputs, stride_height, stride_width, filter_height, filter_width,
-      padding_type);
+      tensor_pool, QnnOpCode::kQnnOpCodePoolMax2d,
+      QNN_OP_POOL_MAX_2D_PARAM_FILTER_SIZE, QNN_OP_POOL_MAX_2D_PARAM_STRIDE,
+      QNN_OP_POOL_MAX_2D_PARAM_PAD_AMOUNT, inputs, outputs, stride_height,
+      stride_width, filter_height, filter_width, padding_type);
 }
 
 std::vector<OpWrapper> BuildAveragePoolOp(
@@ -103,10 +104,10 @@ std::vector<OpWrapper> BuildAveragePoolOp(
     const std::uint32_t filter_height, const std::uint32_t filter_width,
     const PaddingType padding_type) {
   return BuildPool2dOp(
-      tensor_pool, QNN_OP_POOL_AVG_2D, QNN_OP_POOL_AVG_2D_PARAM_FILTER_SIZE,
-      QNN_OP_POOL_AVG_2D_PARAM_STRIDE, QNN_OP_POOL_AVG_2D_PARAM_PAD_AMOUNT,
-      inputs, outputs, stride_height, stride_width, filter_height, filter_width,
-      padding_type);
+      tensor_pool, QnnOpCode::kQnnOpCodePoolAvg2d,
+      QNN_OP_POOL_AVG_2D_PARAM_FILTER_SIZE, QNN_OP_POOL_AVG_2D_PARAM_STRIDE,
+      QNN_OP_POOL_AVG_2D_PARAM_PAD_AMOUNT, inputs, outputs, stride_height,
+      stride_width, filter_height, filter_width, padding_type);
 }
 
 }  // namespace qnn

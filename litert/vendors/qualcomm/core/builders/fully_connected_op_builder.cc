@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -24,7 +25,8 @@ std::vector<OpWrapper> BuildFullyConnectedOp(
     TensorPool& tensor_pool, const std::vector<TensorWrapperRef>& inputs,
     const std::vector<TensorWrapperRef>& outputs, const bool keep_num_dims) {
   std::vector<OpWrapper> res;
-  OpWrapper& fully_connected_op = CreateOpWrapper(res, QNN_OP_FULLY_CONNECTED);
+  OpWrapper& fully_connected_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeFullyConnected);
 
   TensorWrapper& input_tensor = inputs[0];
   fully_connected_op.AddInputTensor(input_tensor);
@@ -52,7 +54,8 @@ std::vector<OpWrapper> BuildFullyConnectedOp(
 
     fully_connected_op.AddOutputTensor(fully_connected_out);
 
-    qnn::OpWrapper& reshape_op = CreateOpWrapper(res, QNN_OP_RESHAPE);
+    qnn::OpWrapper& reshape_op =
+        CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
     reshape_op.AddInputTensor(fully_connected_out);
     reshape_op.AddOutputTensor(output_tensor);
   } else {

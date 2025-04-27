@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -25,7 +26,8 @@ std::vector<OpWrapper> BuildHardSwishOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  OpWrapper& hard_swish_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_NEURON);
+  OpWrapper& hard_swish_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseNeuron);
   hard_swish_op.AddInputTensor(inputs[kInputIndex]);
   hard_swish_op.AddOutputTensor(outputs[kOutputIndex]);
   hard_swish_op.AddScalarParam<std::uint32_t>(

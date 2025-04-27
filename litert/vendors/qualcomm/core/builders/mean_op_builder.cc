@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -55,7 +56,7 @@ std::vector<OpWrapper> BuildMeanOp(TensorPool& tensor_pool,
       sizeof(std::uint32_t) * adjusted_axis_data.size(),
       adjusted_axis_data.data());
 
-  auto& reduce_op = CreateOpWrapper(res, QNN_OP_REDUCE_MEAN);
+  auto& reduce_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReduceMean);
   reduce_op.AddInputTensor(input_tensor);
   reduce_op.AddOutputTensor(outputs[0]);
   reduce_op.AddTensorParam(QNN_OP_REDUCE_MEAN_PARAM_AXES, adjusted_axis_tensor);

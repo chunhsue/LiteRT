@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -64,7 +65,7 @@ std::vector<OpWrapper> BuildSliceOp(
       {input_rank, kRangeNumElements}, sizeof(std::int32_t) * range_data.size(),
       range_data.data());
 
-  auto& slice_op = CreateOpWrapper(res, QNN_OP_STRIDED_SLICE);
+  auto& slice_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeStridedSlice);
   slice_op.AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES, range_tensor);
   slice_op.AddInputTensor(input_tensor);
   slice_op.AddOutputTensor(outputs[0]);

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -72,7 +73,7 @@ bool TransformToStrideSliceOp(TensorPool& tensor_pool,
       QNN_DATATYPE_INT_32, {}, {input.GetRank(), 3},
       sizeof(std::int32_t) * range_data.size(), range_data.data());
 
-  auto& slice_op = CreateOpWrapper(res, QNN_OP_STRIDED_SLICE);
+  auto& slice_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeStridedSlice);
   slice_op.AddInputTensor(input);
   slice_op.AddOutputTensor(output);
   slice_op.AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES, range_tensor);
@@ -100,7 +101,7 @@ std::vector<OpWrapper> BuildGatherNdOp(
     }
   }
 
-  OpWrapper& gathernd_op = CreateOpWrapper(res, QNN_OP_GATHER_ND);
+  OpWrapper& gathernd_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeGatherNd);
   gathernd_op.AddInputTensor(input_tensor);
   gathernd_op.AddInputTensor(indices_tensor);
   gathernd_op.AddOutputTensor(outputs[kOutputIndex]);

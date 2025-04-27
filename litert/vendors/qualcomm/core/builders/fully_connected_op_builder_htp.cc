@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -46,7 +47,8 @@ std::vector<OpWrapper> BuildFullyConnectedOpHtp(
   TensorWrapper& weight_tensor = inputs[1];
   TensorWrapper& output_tensor = outputs[0];
   // Reshape
-  qnn::OpWrapper& reshape_op_1 = CreateOpWrapper(res, QNN_OP_RESHAPE);
+  qnn::OpWrapper& reshape_op_1 =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
   reshape_op_1.AddInputTensor(input_tensor);
   std::vector<uint32_t> conv_input_dims = input_tensor.GetDims();
   conv_input_dims.insert(conv_input_dims.begin() + 1, 1);
@@ -54,7 +56,7 @@ std::vector<OpWrapper> BuildFullyConnectedOpHtp(
       tensor_pool.CloneNativeTensorFrom(input_tensor, conv_input_dims);
   reshape_op_1.AddOutputTensor(conv_input_tensor);
   // Conv2D Input, Weight, and Output
-  OpWrapper& conv_op = CreateOpWrapper(res, QNN_OP_CONV_2D);
+  OpWrapper& conv_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeConv2d);
   conv_op.AddInputTensor(conv_input_tensor);
   auto& quant_params = weight_tensor.GetQuantParams();
   if (std::holds_alternative<AxisScaleOffsetQuantizeParamsWrapper>(
@@ -124,7 +126,8 @@ std::vector<OpWrapper> BuildFullyConnectedOpHtp(
   conv_op.AddTensorParam(QNN_OP_CONV_2D_PARAM_PAD_AMOUNT, padding_tensor);
 
   // Reshape
-  qnn::OpWrapper& reshape_op_2 = CreateOpWrapper(res, QNN_OP_RESHAPE);
+  qnn::OpWrapper& reshape_op_2 =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReshape);
   reshape_op_2.AddInputTensor(conv_out);
   reshape_op_2.AddOutputTensor(output_tensor);
   return res;

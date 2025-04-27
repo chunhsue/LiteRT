@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
@@ -55,7 +56,7 @@ std::vector<OpWrapper> BuildSplitOp(
       QNN_DATATYPE_UINT_32, axis_tensor.GetQuantParams(), {num_splits - 1},
       sizeof(std::uint32_t) * split_indice.size(), split_indice.data());
 
-  auto& split_op = CreateOpWrapper(res, QNN_OP_SPLIT);
+  auto& split_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeSplit);
   split_op.AddInputTensor(input_tensor);
   for (const auto& output : outputs) {
     split_op.AddOutputTensor(output);

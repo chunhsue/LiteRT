@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
 #include "third_party/qairt/latest/include/QNN/QnnOpDef.h"
 #include "third_party/qairt/latest/include/QNN/QnnTypes.h"
@@ -15,6 +16,9 @@ namespace qnn {
 
 OpWrapper::OpWrapper(std::string name, const char* op_type)
     : type_name_{op_type}, name_{std::move(name)} {}
+
+OpWrapper::OpWrapper(std::string name, const char* op_type, QnnOpCode op_code)
+    : type_name_{op_type}, name_{std::move(name)}, qnn_op_code_{op_code} {}
 
 OpWrapper::OpWrapper(const OpWrapper& other)
     : type_name_{other.type_name_},
@@ -25,7 +29,8 @@ OpWrapper::OpWrapper(const OpWrapper& other)
       tensor_params_{other.tensor_params_},
       qnn_input_tensors_{other.qnn_input_tensors_},
       qnn_output_tensors_{other.qnn_output_tensors_},
-      qnn_params_{other.qnn_params_} {}
+      qnn_params_{other.qnn_params_},
+      qnn_op_code_{other.qnn_op_code_} {}
 
 OpWrapper& OpWrapper::operator=(const OpWrapper& other) {
   new (this) OpWrapper(other);
@@ -100,12 +105,12 @@ bool OpWrapper::IsOpType(const char* op_type) const {
   return strcmp(type_name_, op_type) == 0;
 }
 
-std::string_view OpWrapper::GetInputTensorName(size_t i) const {
-  return input_tensors_[i].get().GetName();
+const qnn::TensorWrapper& OpWrapper::GetInputTensor(size_t i) const {
+  return input_tensors_[i].get();
 }
 
-std::string_view OpWrapper::GetOutputTensorName(size_t i) const {
-  return output_tensors_[i].get().GetName();
+const qnn::TensorWrapper& OpWrapper::GetOutputTensor(size_t i) const {
+  return output_tensors_[i].get();
 }
 
 void OpWrapper::StealOutputs(const OpWrapper& other) {

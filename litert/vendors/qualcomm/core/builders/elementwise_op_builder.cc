@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -19,7 +20,8 @@ std::vector<OpWrapper> BuildElementwiseAddOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_ADD);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseAdd);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -33,7 +35,8 @@ std::vector<OpWrapper> BuildElementwiseSubOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_SUBTRACT);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseSubtract);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -47,7 +50,8 @@ std::vector<OpWrapper> BuildElementwiseMulOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_MULTIPLY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseMultiply);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -61,7 +65,8 @@ std::vector<OpWrapper> BuildElementwiseDivOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_DIVIDE);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseDivide);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -75,7 +80,8 @@ std::vector<OpWrapper> BuildElementwiseSinOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_SIN);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseSin);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -89,7 +95,8 @@ std::vector<OpWrapper> BuildElementwiseCosOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_COS);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseCos);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -103,7 +110,8 @@ std::vector<OpWrapper> BuildElementwiseRsqrtOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_RSQRT);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseRsqrt);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -118,7 +126,7 @@ std::vector<OpWrapper> BuildElementwiseSquareOp(
   std::vector<OpWrapper> res;
 
   OpWrapper& elementwise_op =
-      CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_MULTIPLY);
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseMultiply);
   elementwise_op.AddInputTensor(inputs[0]);
   elementwise_op.AddInputTensor(inputs[0]);
   elementwise_op.AddOutputTensor(outputs[0]);
@@ -132,7 +140,7 @@ std::vector<OpWrapper> BuildElementwiseSquaredDifferenceOp(
   std::vector<OpWrapper> res;
 
   auto& elementwise_op =
-      CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_SQUARED_DIFFERENCE);
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseSquaredDifference);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -146,7 +154,8 @@ std::vector<OpWrapper> BuildElementwiseLessOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -163,7 +172,8 @@ std::vector<OpWrapper> BuildElementwiseGreaterOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -180,7 +190,8 @@ std::vector<OpWrapper> BuildElementwiseAndOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -197,7 +208,8 @@ std::vector<OpWrapper> BuildElementwiseMinimumOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -214,7 +226,8 @@ std::vector<OpWrapper> BuildElementwiseMaximumOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }
@@ -231,7 +244,8 @@ std::vector<OpWrapper> BuildElementwiseFloorDivOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   elementwise_op.AddInputTensor(inputs[0]);
   elementwise_op.AddInputTensor(inputs[1]);
   elementwise_op.AddOutputTensor(outputs[0]);
@@ -247,7 +261,8 @@ std::vector<OpWrapper> BuildElementwiseNotEqualOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_BINARY);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWiseBinary);
   elementwise_op.AddInputTensor(inputs[0]);
   elementwise_op.AddInputTensor(inputs[1]);
   elementwise_op.AddOutputTensor(outputs[0]);
@@ -263,7 +278,8 @@ std::vector<OpWrapper> BuildElementwisePower(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& elementwise_op = CreateOpWrapper(res, QNN_OP_ELEMENT_WISE_POWER);
+  auto& elementwise_op =
+      CreateOpWrapper(res, QnnOpCode::kQnnOpCodeElementWisePower);
   for (const auto& input : inputs) {
     elementwise_op.AddInputTensor(input);
   }

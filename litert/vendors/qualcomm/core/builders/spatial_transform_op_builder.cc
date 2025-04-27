@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -24,11 +25,11 @@ constexpr size_t kOutputIndex = 0;
 
 std::vector<OpWrapper> BuildSpatialTransformOp(
     TensorPool& tensor_pool, const std::vector<TensorWrapperRef>& inputs,
-    const std::vector<TensorWrapperRef>& outputs, const char* op_type,
+    const std::vector<TensorWrapperRef>& outputs, QnnOpCode qnn_op_code,
     const char* block_param, const std::uint32_t block_size) {
   std::vector<OpWrapper> res;
 
-  auto& spatial_transform_op = CreateOpWrapper(res, op_type);
+  auto& spatial_transform_op = CreateOpWrapper(res, qnn_op_code);
   spatial_transform_op.AddInputTensor(inputs[kInputIndex]);
   spatial_transform_op.AddOutputTensor(outputs[kOutputIndex]);
   const std::array<std::uint32_t, 2> block_data = {block_size, block_size};
@@ -48,7 +49,7 @@ std::vector<OpWrapper> BuildDepthToSpaceOp(
     const std::vector<TensorWrapperRef>& outputs,
     const std::uint32_t block_size) {
   return BuildSpatialTransformOp(
-      tensor_pool, inputs, outputs, QNN_OP_DEPTH_TO_SPACE,
+      tensor_pool, inputs, outputs, QnnOpCode::kQnnOpCodeDepthToSpace,
       QNN_OP_DEPTH_TO_SPACE_PARAM_BLOCK_SIZE, block_size);
 }
 
@@ -57,7 +58,7 @@ std::vector<OpWrapper> BuildSpaceToDepthOp(
     const std::vector<TensorWrapperRef>& outputs,
     const std::uint32_t block_size) {
   return BuildSpatialTransformOp(
-      tensor_pool, inputs, outputs, QNN_OP_SPACE_TO_DEPTH,
+      tensor_pool, inputs, outputs, QnnOpCode::kQnnOpCodeSpaceToDepth,
       QNN_OP_SPACE_TO_DEPTH_PARAM_BLOCK_SIZE, block_size);
 }
 }  // namespace qnn

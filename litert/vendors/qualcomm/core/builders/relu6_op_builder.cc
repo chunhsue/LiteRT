@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -17,7 +18,7 @@ std::vector<OpWrapper> BuildRelu6Op(
   std::vector<OpWrapper> res;
 
   // QNN_OP_RELU6 is deprecated, use QNN_OP_RELU_MIN_MAX instead.
-  auto& activation_op = CreateOpWrapper(res, QNN_OP_RELU_MIN_MAX);
+  auto& activation_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeReluMinMax);
   activation_op.AddScalarParam<float>(QNN_OP_RELU_MIN_MAX_PARAM_MIN_VALUE, 0);
   activation_op.AddScalarParam<float>(QNN_OP_RELU_MIN_MAX_PARAM_MAX_VALUE, 6);
   activation_op.AddInputTensor(inputs[0]);

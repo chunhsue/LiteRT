@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
 #include "third_party/qairt/latest/include/QNN/QnnOpDef.h"
@@ -17,7 +19,7 @@ std::vector<OpWrapper> BuildCastOp(
     const std::vector<TensorWrapperRef>& outputs) {
   std::vector<OpWrapper> res;
 
-  auto& op = CreateOpWrapper(res, QNN_OP_CAST);
+  auto& op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeCast);
   op.AddInputTensor(inputs[0]);
   op.AddOutputTensor(outputs[0]);
 

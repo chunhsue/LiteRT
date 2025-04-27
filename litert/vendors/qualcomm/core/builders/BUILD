@@ -7,6 +7,19 @@ package(
 )
 
 cc_library(
+    name = "op_code",
+    srcs = ["op_code.cc"],
+    hdrs = ["op_code.h"],
+    tags = [
+        # Don't build/test in OS until qnn is available.
+        "nobuilder",
+    ],
+    deps = [
+        # copybara:uncomment "//third_party/qairt/latest:qnn_lib_headers",
+    ]
+)
+
+cc_library(
     name = "op_builder",
     srcs = ["op_builder.cc"],
     hdrs = ["op_builder.h"],
@@ -15,6 +28,7 @@ cc_library(
         "nobuilder",
     ],
     deps = [
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -33,6 +47,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -52,6 +67,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:param_wrapper",
@@ -71,6 +87,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -88,6 +105,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -105,6 +123,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -123,6 +142,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -140,6 +160,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -158,6 +179,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -175,6 +197,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -192,6 +215,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -209,6 +233,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -228,6 +253,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -245,6 +271,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -263,6 +290,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -280,6 +308,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -298,6 +327,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -315,6 +345,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -332,6 +363,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -350,6 +382,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -367,6 +400,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -385,6 +419,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -402,6 +437,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -420,6 +456,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -437,6 +474,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -456,6 +494,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
@@ -474,6 +513,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -493,6 +533,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
@@ -511,6 +552,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
@@ -529,6 +571,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -548,6 +591,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -567,6 +611,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
@@ -585,6 +630,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
@@ -603,6 +649,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
@@ -620,6 +667,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -639,6 +687,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -658,6 +707,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
@@ -677,6 +727,7 @@ cc_library(
     ],
     deps = [
         ":op_builder",
+        ":op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",

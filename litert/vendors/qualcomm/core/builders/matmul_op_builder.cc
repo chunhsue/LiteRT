@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -19,7 +20,7 @@ std::vector<OpWrapper> BuildMatmulOp(
     const bool adj_y) {
   std::vector<OpWrapper> res;
 
-  auto& matmul_op = CreateOpWrapper(res, QNN_OP_MAT_MUL);
+  auto& matmul_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeMatMul);
   for (const auto& input : inputs) {
     matmul_op.AddInputTensor(input);
   }

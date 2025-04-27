@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -18,7 +19,7 @@ std::vector<OpWrapper> BuildSoftmaxOp(
     const std::vector<TensorWrapperRef>& outputs, const float beta) {
   std::vector<OpWrapper> res;
 
-  auto& softmax_op = CreateOpWrapper(res, QNN_OP_SOFTMAX);
+  auto& softmax_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeSoftmax);
   softmax_op.AddInputTensor(inputs[0]);
   softmax_op.AddOutputTensor(outputs[0]);
   softmax_op.AddScalarParam<float>(QNN_OP_SOFTMAX_PARAM_BETA, beta);

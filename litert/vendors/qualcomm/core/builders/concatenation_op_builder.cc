@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
@@ -19,7 +20,7 @@ std::vector<OpWrapper> BuildConcatenationOp(
     const std::vector<TensorWrapperRef>& outputs, const std::int32_t axis) {
   std::vector<OpWrapper> res;
 
-  auto& concat_op = CreateOpWrapper(res, QNN_OP_CONCAT);
+  auto& concat_op = CreateOpWrapper(res, QnnOpCode::kQnnOpCodeConcat);
   for (const auto& input : inputs) {
     concat_op.AddInputTensor(input);
   }

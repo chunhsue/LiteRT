@@ -62,6 +62,7 @@ cc_library(
         "nobuilder",
     ],
     deps = [
+        "//litert/vendors/qualcomm/core/builders:op_code",
         "//litert/vendors/qualcomm/core/wrappers:param_wrapper",
         "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
         # copybara:uncomment "//third_party/qairt/latest:qnn_lib_headers",
