@@ -12,6 +12,7 @@
 #include "litert/vendors/qualcomm/core/builders/reshape_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/slice_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/softmax_op_builder.h"
+#include "litert/vendors/qualcomm/core/builders/split_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/transpose_op_builder.h"
 #include "litert/vendors/qualcomm/core/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
@@ -122,14 +123,6 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   const auto& add_after_matmulv_output_2 =
       ops[start_id + 11 + id_offset].GetOutputTensor(0);
 
-  // Slice tensor for multiplied by K
-  const std::vector<uint32_t> slice_size_dim{4};
-  const std::array<int32_t, 4> slice_size_data{1, 1, seq_len, 256};
-  auto& slice_size = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, slice_size_dim,
-      slice_size_data.size() * sizeof(slice_size_data[0]),
-      slice_size_data.data());
-
   // Slice tensor for multiplied by V
   const std::vector<uint32_t> slice1_begin_dim{4};
   const std::array<int32_t, 4> slice1_begin_data{0, 0, 0, 0};
@@ -156,39 +149,40 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
       QNN_DATATYPE_INT_32, {}, slice2_size_dim,
       slice2_size_data.size() * sizeof(slice2_size_data[0]),
       slice2_size_data.data());
+  // Split
+  std::vector<::qnn::TensorWrapperRef> split_inputs;
+  const std::vector<uint32_t> split_axis_dim{1};
+  const std::array<int32_t, 1> split_axis_data{2};
+  auto& split_axis = tensor_pool.CreateStaticTensor(
+      QNN_DATATYPE_INT_32, {}, split_axis_dim,
+      split_axis_data.size() * sizeof(split_axis_data[0]),
+      split_axis_data.data());
+  split_inputs.emplace_back(split_axis);
+  split_inputs.emplace_back(
+      const_cast<::qnn::TensorWrapper&>(*pattern_input_ptr));
+  std::vector<::qnn::TensorWrapperRef> split_outputs;
+  for (int i = 0; i < num_heads; ++i) {
+    const std::vector<uint32_t> split_output_dim = {
+        1, 1, static_cast<uint32_t>(seq_len), 256};
+    auto& split_output =
+        tensor_pool.CloneNativeTensorFrom(*pattern_input_ptr, split_output_dim);
+    split_outputs.emplace_back(split_output);
+  }
+  auto split =
+      BuildSplitOp(tensor_pool, split_inputs, split_outputs, num_heads);
+  std::move(split.begin(), split.end(), std::back_inserter(new_ops));
 
   std::array<::qnn::TensorWrapper*, 4> concat_aftet_mha;
   std::array<::qnn::TensorWrapper*, 4> concat_aftet_mha_2;
-  for (int i = 0; i < num_heads; ++i) {
-    std::vector<::qnn::TensorWrapperRef> slice_inputs;
-    slice_inputs.emplace_back(
-        const_cast<::qnn::TensorWrapper&>(*pattern_input_ptr));
-    const std::vector<uint32_t> slice_begin_dim{4};
-    const std::array<int32_t, 4> slice_begin_data{
-        0, 0, static_cast<int>(i * pattern_input_ptr->GetDim(2) / num_heads),
-        0};
-    auto& slice_begin = tensor_pool.CreateStaticTensor(
-        QNN_DATATYPE_INT_32, {}, slice_begin_dim,
-        slice_begin_data.size() * sizeof(slice_begin_data[0]),
-        slice_begin_data.data());
-    slice_inputs.emplace_back(slice_begin);
-    slice_inputs.emplace_back(slice_size);
-    std::vector<::qnn::TensorWrapperRef> slice_outputs;
-    const std::vector<uint32_t> slice_output_dim = {
-        1, 1, static_cast<uint32_t>(seq_len), 256};
-    auto& slice_output =
-        tensor_pool.CloneNativeTensorFrom(*pattern_input_ptr, slice_output_dim);
-    slice_outputs.emplace_back(slice_output);
-    auto slice = BuildSliceOp(tensor_pool, slice_inputs, slice_outputs);
-    std::move(slice.begin(), slice.end(), std::back_inserter(new_ops));
 
+  for (int i = 0; i < num_heads; ++i) {
     // Mul
     std::vector<::qnn::TensorWrapperRef> mul_inputs;
-    mul_inputs.emplace_back(slice_output);
+    mul_inputs.emplace_back(split_outputs[i].get());
     mul_inputs.emplace_back(const_cast<::qnn::TensorWrapper&>(mul_const));
     std::vector<::qnn::TensorWrapperRef> mul_outputs;
-    auto& mul_output =
-        tensor_pool.CloneNativeTensorFrom(slice_output, mul_output_quant_param);
+    auto& mul_output = tensor_pool.CloneNativeTensorFrom(
+        split_outputs[i].get(), mul_output_quant_param);
     mul_outputs.emplace_back(mul_output);
     auto mul = BuildElementwiseMulOp(tensor_pool, mul_inputs, mul_outputs);
     std::move(mul.begin(), mul.end(), std::back_inserter(new_ops));
