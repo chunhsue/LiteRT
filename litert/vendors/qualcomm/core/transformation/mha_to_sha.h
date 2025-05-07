@@ -13,7 +13,7 @@
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 namespace qnn {
 
-constexpr std::array<QnnOpCode, 15> kGemma3MHAToSHAPrefill = {
+constexpr std::array<QnnOpCode, 18> kGemma3MHAToSHAPrefill = {
     QnnOpCode::kElementWiseMultiply,
     QnnOpCode::kTranspose,
     QnnOpCode::kReshape,
@@ -29,9 +29,12 @@ constexpr std::array<QnnOpCode, 15> kGemma3MHAToSHAPrefill = {
     QnnOpCode::kMatMul,
     QnnOpCode::kMatMul,
     QnnOpCode::kElementWiseAdd,
+    QnnOpCode::kReshape,
+    QnnOpCode::kTranspose,
+    QnnOpCode::kReshape,
 };
 
-constexpr std::array<QnnOpCode, 13> kGemma3MHAToSHADecode = {
+constexpr std::array<QnnOpCode, 14> kGemma3MHAToSHADecode = {
     QnnOpCode::kElementWiseMultiply,
     QnnOpCode::kMatMul,
     QnnOpCode::kMatMul,
@@ -45,6 +48,7 @@ constexpr std::array<QnnOpCode, 13> kGemma3MHAToSHADecode = {
     QnnOpCode::kMatMul,
     QnnOpCode::kMatMul,
     QnnOpCode::kElementWiseAdd,
+    QnnOpCode::kReshape,
 };
 
 bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
