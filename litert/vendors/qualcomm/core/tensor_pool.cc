@@ -6,9 +6,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "QnnTypes.h"  // from @qairt
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
+#include "QnnTypes.h"  // from @qairt
 
 namespace qnn {
 

@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"  // from @com_google_absl
-#include "absl/strings/string_view.h"      // from @com_google_absl
-#include "absl/types/span.h"               // from @com_google_absl
+#include "absl/strings/string_view.h"  // from @com_google_absl
+#include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_logging.h"
 #include "litert/c/litert_model.h"
@@ -847,10 +847,10 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
   std::ostringstream dump;
   for (const auto& op : graph_mapper.Graph().Ops()) {
     // Dump op info.
-    // dump.clear();
-    // Dump(*op.Get(), dump);
-    // std::string s = dump.str();
-    // LITERT_LOG(LITERT_VERBOSE, "%s", s.data());
+    dump.clear();
+    Dump(*op.Get(), dump);
+    std::string s = dump.str();
+    LITERT_LOG(LITERT_VERBOSE, "%s", s.data());
     std::vector<::qnn::TensorWrapperRef> input_tensors;
     for (const auto& input : op.Inputs()) {
       if (const auto it = litert_tensor_to_wrapper.find(input.Get());
@@ -879,12 +879,8 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
     std::vector<::qnn::OpWrapper> op_wrappers;
     LITERT_RETURN_IF_ERROR(
         ConvertOp(op, tensor_pool, input_tensors, output_tensors, op_wrappers));
-    for (const auto p : op_wrappers) {
-      LITERT_LOG(LITERT_INFO, "Test op code %d", p.GetOpCode());
-    }
     std::move(op_wrappers.begin(), op_wrappers.end(),
               std::back_inserter(graph_op_wrappers));
-    LITERT_LOG(LITERT_INFO, "op code size %d", graph_op_wrappers.size());
   }
   // TODO (jiunkaiy): Set this graph-to-graph transformation as a compile flag.
   GraphToGraphTransform(graph_op_wrappers, tensor_pool);
