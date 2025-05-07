@@ -100,9 +100,6 @@ bool OpWrapper::IsOpCode(QnnOpCode op_code) const {
 }
 
 const qnn::TensorWrapper& OpWrapper::GetInputTensor(size_t i) const {
-  if (i >= input_tensors_.size()) {
-    QNN_LOG_INFO("Out-of-range %d", i);
-  }
   return input_tensors_[i].get();
 }
 
