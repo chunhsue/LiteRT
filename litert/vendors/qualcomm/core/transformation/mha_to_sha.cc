@@ -28,7 +28,10 @@ constexpr size_t kMatMulK2Index = 2;
 constexpr size_t kConcatIndex = 3;
 constexpr size_t kAddIndex = 5;
 constexpr size_t kSoftmaxIndex = 7;
+constexpr size_t kMatMulV1Index = 10;
+constexpr size_t kMatMulV2Index = 11;
 }  // namespace
+
 std::vector<OpWrapper> PreprocessPrefill(
     TensorPool& tensor_pool, const qnn::TensorWrapper& input_tensor,
     const qnn::TensorWrapper& transpose_perm,
@@ -37,30 +40,22 @@ std::vector<OpWrapper> PreprocessPrefill(
   std::vector<OpWrapper> res;
 
   // Transpose
-  std::vector<::qnn::TensorWrapperRef> transpose_inputs;
-  transpose_inputs.emplace_back(
-      const_cast<::qnn::TensorWrapper&>(input_tensor));
-  transpose_inputs.emplace_back(
-      const_cast<::qnn::TensorWrapper&>(transpose_perm));
-  std::vector<::qnn::TensorWrapperRef> transpose_outputs;
   auto& transpose_output =
       tensor_pool.CloneNativeTensorFrom(input_tensor, transpose_output_dims);
-  transpose_outputs.emplace_back(transpose_output);
   auto transpose =
-      BuildTransposeOp(tensor_pool, transpose_inputs, transpose_outputs);
+      BuildTransposeOp(tensor_pool,
+                       {const_cast<::qnn::TensorWrapper&>(input_tensor),
+                        const_cast<::qnn::TensorWrapper&>(transpose_perm)},
+                       {transpose_output});
   std::move(transpose.begin(), transpose.end(), std::back_inserter(res));
 
   // Reshape
-  std::vector<::qnn::TensorWrapperRef> reshape_inputs;
-  reshape_inputs.emplace_back(transpose_output);
-  std::vector<::qnn::TensorWrapperRef> reshape_outputs;
-  std::vector<uint32_t> reshape_output_dim = {
-      transpose_output_dims[0], 1,
-      transpose_output_dims[1] * transpose_output_dims[2],
-      transpose_output_dims[3]};
-  reshape_outputs.emplace_back(
-      tensor_pool.CloneNativeTensorFrom(input_tensor, reshape_output_dim));
-  auto reshape = BuildReshapeOp(tensor_pool, reshape_inputs, reshape_outputs);
+  auto& reshape_output = tensor_pool.CloneNativeTensorFrom(
+      input_tensor, {transpose_output_dims[0], 1,
+                     transpose_output_dims[1] * transpose_output_dims[2],
+                     transpose_output_dims[3]});
+  auto reshape =
+      BuildReshapeOp(tensor_pool, {transpose_output}, {reshape_output});
   std::move(reshape.begin(), reshape.end(), std::back_inserter(res));
 
   return res;
@@ -80,6 +75,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   const int num_heads = (*pattern_input_ptr).GetDim(2);
   int seq_len = (*pattern_input_ptr).GetDim(1);
   size_t id_offset = 0;
+  size_t pattern_size = kGemma3MHAToSHADecode.size();
   if ((*pattern_input_ptr).GetDim(1) != 1) {
     auto preprocess_ops = PreprocessPrefill(
         tensor_pool, *pattern_input_ptr,
@@ -89,6 +85,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
               std::back_inserter(new_ops));
     id_offset = new_ops.size();
     pattern_input_ptr = &(new_ops.back().GetOutputTensor(0));
+    pattern_size = kGemma3MHAToSHAPrefill.size();
   }
 
   const auto& matmulk_cache =
@@ -111,15 +108,17 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   const auto& softmax_mha_output =
       ops[start_id + kSoftmaxIndex + id_offset].GetOutputTensor(0);
 
-  const auto& matmulv_cache = ops[start_id + 10 + id_offset].GetInputTensor(1);
+  const auto& matmulv_cache =
+      ops[start_id + kMatMulV1Index + id_offset].GetInputTensor(1);
   const auto& matmulv_cache_output =
-      ops[start_id + 10 + id_offset].GetOutputTensor(0);
-  const auto& matmulv_slice = ops[start_id + 11 + id_offset].GetInputTensor(1);
+      ops[start_id + kMatMulV1Index + id_offset].GetOutputTensor(0);
+  const auto& matmulv_slice =
+      ops[start_id + kMatMulV2Index + id_offset].GetInputTensor(1);
   const auto& matmulv_slice_output =
-      ops[start_id + 11 + id_offset].GetOutputTensor(0);
+      ops[start_id + kMatMulV2Index + id_offset].GetOutputTensor(0);
 
-  const auto& add_after_matmulv_output =
-      ops[start_id + 12 + id_offset + ((id_offset==0)?1:3)].GetOutputTensor(0);
+  const auto& reshape_output =
+      ops[start_id + pattern_size - 1].GetOutputTensor(0);
 
   // Slice tensor for multiplied by V
   const std::vector<uint32_t> slice1_begin_dim{4};
@@ -148,212 +147,149 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
       slice2_size_data.size() * sizeof(slice2_size_data[0]),
       slice2_size_data.data());
   // Split
-  std::vector<::qnn::TensorWrapperRef> split_inputs;
   const std::vector<uint32_t> split_axis_dim{1};
   const std::array<int32_t, 1> split_axis_data{2};
   auto& split_axis = tensor_pool.CreateStaticTensor(
       QNN_DATATYPE_INT_32, {}, split_axis_dim,
       split_axis_data.size() * sizeof(split_axis_data[0]),
       split_axis_data.data());
-  split_inputs.emplace_back(split_axis);
-  split_inputs.emplace_back(
-      const_cast<::qnn::TensorWrapper&>(*pattern_input_ptr));
   std::vector<::qnn::TensorWrapperRef> split_outputs;
   for (int i = 0; i < num_heads; ++i) {
-    const std::vector<uint32_t> split_output_dim = {
-        1, 1, static_cast<uint32_t>(seq_len), 256};
-    auto& split_output =
-        tensor_pool.CloneNativeTensorFrom(*pattern_input_ptr, split_output_dim);
+    auto& split_output = tensor_pool.CloneNativeTensorFrom(
+        *pattern_input_ptr, {1, 1, static_cast<uint32_t>(seq_len), 256});
     split_outputs.emplace_back(split_output);
   }
-  auto split =
-      BuildSplitOp(tensor_pool, split_inputs, split_outputs, num_heads);
+  auto split = BuildSplitOp(
+      tensor_pool,
+      {split_axis, const_cast<::qnn::TensorWrapper&>(*pattern_input_ptr)},
+      split_outputs, num_heads);
   std::move(split.begin(), split.end(), std::back_inserter(new_ops));
 
   std::array<::qnn::TensorWrapper*, 4> concat_aftet_mha;
 
   for (int i = 0; i < num_heads; ++i) {
     // Mul
-    std::vector<::qnn::TensorWrapperRef> mul_inputs;
-    mul_inputs.emplace_back(split_outputs[i].get());
-    mul_inputs.emplace_back(const_cast<::qnn::TensorWrapper&>(mul_const));
-    std::vector<::qnn::TensorWrapperRef> mul_outputs;
     auto& mul_output = tensor_pool.CloneNativeTensorFrom(
         split_outputs[i].get(), mul_output_quant_param);
-    mul_outputs.emplace_back(mul_output);
-    auto mul = BuildElementwiseMulOp(tensor_pool, mul_inputs, mul_outputs);
+    auto mul = BuildElementwiseMulOp(
+        tensor_pool,
+        {split_outputs[i].get(), const_cast<::qnn::TensorWrapper&>(mul_const)},
+        {mul_output});
     std::move(mul.begin(), mul.end(), std::back_inserter(new_ops));
-    // 2 * MatMul
     // MatMul 1
-    std::vector<::qnn::TensorWrapperRef> matmul1_inputs;
-    matmul1_inputs.emplace_back(mul_output);
-    matmul1_inputs.emplace_back(
-        const_cast<::qnn::TensorWrapper&>(matmulk_cache));
-    std::vector<::qnn::TensorWrapperRef> matmul1_outputs;
     std::vector<uint32_t> matmul1_output_dim = matmulk_cache_output.GetDims();
     matmul1_output_dim[2] = matmul1_output_dim[2] / num_heads;
     auto& matmul1_output = tensor_pool.CloneNativeTensorFrom(
         matmulk_cache_output, matmul1_output_dim);
-    matmul1_outputs.emplace_back(matmul1_output);
-    auto matmul1 = BuildMatmulOp(tensor_pool, matmul1_inputs, matmul1_outputs,
-                                 false, true);
+    auto matmul1 = BuildMatmulOp(
+        tensor_pool,
+        {mul_output, const_cast<::qnn::TensorWrapper&>(matmulk_cache)},
+        {matmul1_output}, false, true);
     std::move(matmul1.begin(), matmul1.end(), std::back_inserter(new_ops));
     // MatMul 2
-    std::vector<::qnn::TensorWrapperRef> matmul2_inputs;
-    matmul2_inputs.emplace_back(mul_output);
-    matmul2_inputs.emplace_back(
-        const_cast<::qnn::TensorWrapper&>(matmulk_slice));
-    std::vector<::qnn::TensorWrapperRef> matmul2_outputs;
     std::vector<uint32_t> matmul2_output_dim = matmulk_slice_output.GetDims();
     matmul2_output_dim[2] = matmul2_output_dim[2] / num_heads;
     auto& matmul2_output = tensor_pool.CloneNativeTensorFrom(
         matmulk_slice_output, matmul2_output_dim);
-    matmul2_outputs.emplace_back(matmul2_output);
-    auto matmul2 = BuildMatmulOp(tensor_pool, matmul2_inputs, matmul2_outputs,
-                                 false, true);
+    auto matmul2 = BuildMatmulOp(
+        tensor_pool,
+        {mul_output, const_cast<::qnn::TensorWrapper&>(matmulk_slice)},
+        {matmul2_output}, false, true);
     std::move(matmul2.begin(), matmul2.end(), std::back_inserter(new_ops));
     // Concat
-    std::vector<::qnn::TensorWrapperRef> concat_inputs;
-    concat_inputs.emplace_back(matmul1_output);
-    concat_inputs.emplace_back(matmul2_output);
-    std::vector<::qnn::TensorWrapperRef> concat_outputs;
     std::vector<uint32_t> concat_output_dim = matmul1_output.GetDims();
     concat_output_dim[3] += matmul2_output.GetDim(3);
     auto& concat_output =
         tensor_pool.CloneNativeTensorFrom(concat_mha_output, concat_output_dim);
-    concat_outputs.emplace_back(concat_output);
-    auto concat =
-        BuildConcatenationOp(tensor_pool, concat_inputs, concat_outputs, 3);
+    auto concat = BuildConcatenationOp(
+        tensor_pool, {matmul1_output, matmul2_output}, {concat_output}, 3);
     std::move(concat.begin(), concat.end(), std::back_inserter(new_ops));
     // Add
-    std::vector<::qnn::TensorWrapperRef> add_inputs;
-    add_inputs.emplace_back(concat_output);
-    add_inputs.emplace_back(const_cast<::qnn::TensorWrapper&>(add_mha_mask));
-    std::vector<::qnn::TensorWrapperRef> add_outputs;
     auto& add_output = tensor_pool.CloneNativeTensorFrom(
         add_mha_output, concat_output.GetDims());
-    add_outputs.emplace_back(add_output);
-    auto add = BuildElementwiseAddOp(tensor_pool, add_inputs, add_outputs);
+    auto add = BuildElementwiseAddOp(
+        tensor_pool,
+        {concat_output, const_cast<::qnn::TensorWrapper&>(add_mha_mask)},
+        {add_output});
     std::move(add.begin(), add.end(), std::back_inserter(new_ops));
     // Softmax
-    std::vector<::qnn::TensorWrapperRef> softmax_inputs;
-    softmax_inputs.emplace_back(add_output);
-    std::vector<::qnn::TensorWrapperRef> softmax_outputs;
     auto& softmax_output = tensor_pool.CloneNativeTensorFrom(
         softmax_mha_output, add_output.GetDims());
-    softmax_outputs.emplace_back(softmax_output);
     auto softmax =
-        BuildSoftmaxOp(tensor_pool, softmax_inputs, softmax_outputs, 1.0f);
+        BuildSoftmaxOp(tensor_pool, {add_output}, {softmax_output}, 1.0f);
     std::move(softmax.begin(), softmax.end(), std::back_inserter(new_ops));
-    // 2 (Slice -> MatMul)
     // Slice 1
-    std::vector<::qnn::TensorWrapperRef> slice1_inputs;
-    slice1_inputs.emplace_back(softmax_output);
-    slice1_inputs.emplace_back(slice1_begin);
-    slice1_inputs.emplace_back(slice1_size);
-    std::vector<::qnn::TensorWrapperRef> slice1_outputs;
     const std::vector<uint32_t> slice1_output_dim{
         1, 1, static_cast<uint32_t>(seq_len), 1280};
     auto& slice1_output =
         tensor_pool.CloneNativeTensorFrom(softmax_output, slice1_output_dim);
-    slice1_outputs.emplace_back(slice1_output);
-    auto slice1 = BuildSliceOp(tensor_pool, slice1_inputs, slice1_outputs);
+    auto slice1 =
+        BuildSliceOp(tensor_pool, {softmax_output, slice1_begin, slice1_size},
+                     {slice1_output});
     std::move(slice1.begin(), slice1.end(), std::back_inserter(new_ops));
     // MatMul 1
-    std::vector<::qnn::TensorWrapperRef> matmul1_v_inputs;
-    matmul1_v_inputs.emplace_back(slice1_output);
-    matmul1_v_inputs.emplace_back(
-        const_cast<::qnn::TensorWrapper&>(matmulv_cache));
-    std::vector<::qnn::TensorWrapperRef> matmul1_v_outputs;
     std::vector<uint32_t> matmul1_v_output_dim = matmulv_cache_output.GetDims();
     matmul1_v_output_dim[2] = matmul1_v_output_dim[2] / num_heads;
     auto& matmul1_v_output = tensor_pool.CloneNativeTensorFrom(
         matmulv_cache_output, matmul1_v_output_dim);
-    matmul1_v_outputs.emplace_back(matmul1_v_output);
-    auto matmul1_v = BuildMatmulOp(tensor_pool, matmul1_v_inputs,
-                                   matmul1_v_outputs, false, true);
+    auto matmul1_v = BuildMatmulOp(
+        tensor_pool,
+        {slice1_output, const_cast<::qnn::TensorWrapper&>(matmulv_cache)},
+        {matmul1_v_output}, false, true);
     std::move(matmul1_v.begin(), matmul1_v.end(), std::back_inserter(new_ops));
     // Slice 2
-    std::vector<::qnn::TensorWrapperRef> slice2_inputs;
-    slice2_inputs.emplace_back(softmax_output);
-    slice2_inputs.emplace_back(slice2_begin);
-    slice2_inputs.emplace_back(slice2_size);
-    std::vector<::qnn::TensorWrapperRef> slice2_outputs;
-    std::vector<uint32_t> slice2_output_dim{
-        1, 1, static_cast<uint32_t>(seq_len), static_cast<uint32_t>(seq_len)};
-    auto& slice2_output =
-        tensor_pool.CloneNativeTensorFrom(softmax_output, slice2_output_dim);
-    slice2_outputs.emplace_back(slice2_output);
-    auto slice2 = BuildSliceOp(tensor_pool, slice2_inputs, slice2_outputs);
+    auto& slice2_output = tensor_pool.CloneNativeTensorFrom(
+        softmax_output,
+        {1, 1, static_cast<uint32_t>(seq_len), static_cast<uint32_t>(seq_len)});
+    auto slice2 =
+        BuildSliceOp(tensor_pool, {softmax_output, slice2_begin, slice2_size},
+                     {slice2_output});
     std::move(slice2.begin(), slice2.end(), std::back_inserter(new_ops));
     // MatMul 2
-    std::vector<::qnn::TensorWrapperRef> matmul2_v_inputs;
-    matmul2_v_inputs.emplace_back(slice2_output);
-    matmul2_v_inputs.emplace_back(
-        const_cast<::qnn::TensorWrapper&>(matmulv_slice));
-    std::vector<::qnn::TensorWrapperRef> matmul2_v_outputs;
     std::vector<uint32_t> matmul2_v_output_dim = matmulv_slice_output.GetDims();
     matmul2_v_output_dim[2] = matmul2_v_output_dim[2] / num_heads;
     auto& matmul2_v_output = tensor_pool.CloneNativeTensorFrom(
         matmulv_slice_output, matmul2_v_output_dim);
-    matmul2_v_outputs.emplace_back(matmul2_v_output);
-    auto matmul2_v = BuildMatmulOp(tensor_pool, matmul2_v_inputs,
-                                   matmul2_v_outputs, false, true);
+    auto matmul2_v = BuildMatmulOp(
+        tensor_pool,
+        {slice2_output, const_cast<::qnn::TensorWrapper&>(matmulv_slice)},
+        {matmul2_v_output}, false, true);
     std::move(matmul2_v.begin(), matmul2_v.end(), std::back_inserter(new_ops));
     // Add
-    std::vector<::qnn::TensorWrapperRef> add_final_inputs;
-    add_final_inputs.emplace_back(matmul1_v_output);
-    add_final_inputs.emplace_back(matmul2_v_output);
-    std::vector<::qnn::TensorWrapperRef> add_final_outputs;
-    std::vector<uint32_t> add_final_output_dim = matmul1_v_output.GetDims();
     auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
-        add_after_matmulv_output, add_final_output_dim);
+        reshape_output, matmul1_v_output.GetDims());
     concat_aftet_mha[i] = &add_final_output;
-    add_final_outputs.emplace_back(add_final_output);
-    auto add_final =
-        BuildElementwiseAddOp(tensor_pool, add_final_inputs, add_final_outputs);
+    auto add_final = BuildElementwiseAddOp(
+        tensor_pool, {matmul1_v_output, matmul2_v_output}, {add_final_output});
     std::move(add_final.begin(), add_final.end(), std::back_inserter(new_ops));
   }
   // Concat
   std::vector<::qnn::TensorWrapperRef> concat_final_inputs;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < num_heads; ++i) {
     concat_final_inputs.emplace_back(*(concat_aftet_mha[i]));
   }
-  std::vector<::qnn::TensorWrapperRef> concat_final_outputs;
-  auto concat_dims = add_after_matmulv_output.GetDims();
+  auto concat_dims = reshape_output.GetDims();
   concat_dims.insert(concat_dims.begin(), 1);
   auto& concat_output =
-      tensor_pool.CloneNativeTensorFrom(add_after_matmulv_output, concat_dims);
-  concat_final_outputs.emplace_back(concat_output);
+      tensor_pool.CloneNativeTensorFrom(reshape_output, concat_dims);
   auto concat_final = BuildConcatenationOp(tensor_pool, concat_final_inputs,
-                                           concat_final_outputs, 3);
+                                           {concat_output}, 3);
   std::move(concat_final.begin(), concat_final.end(),
             std::back_inserter(new_ops));
-  auto reshape_final = BuildReshapeOp(
-      tensor_pool, {concat_output},
-      {const_cast<::qnn::TensorWrapper&>(add_after_matmulv_output)});
-  std::move(reshape_final.begin(), reshape_final.end(),
-            std::back_inserter(new_ops));
+  // Reshape
+  auto reshape =
+      BuildReshapeOp(tensor_pool, {concat_output},
+                     {const_cast<::qnn::TensorWrapper&>(reshape_output)});
+  std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
 
-  if (id_offset != 0) {
-    QNN_LOG_INFO("Add new ops");
-    ops.insert(ops.begin() + start_id + 13 + 3 + id_offset,
-               std::make_move_iterator(new_ops.begin()),
-               std::make_move_iterator(new_ops.end()));
-    QNN_LOG_INFO("Remove useless ops");
-    // And then remove 0~14
-    ops.erase(ops.begin() + start_id,
-              ops.begin() + start_id + 13 + 3 + id_offset);
-  } else {
-    QNN_LOG_INFO("Add new ops");
-    ops.insert(ops.begin() + start_id + 13 + 1,
-               std::make_move_iterator(new_ops.begin()),
-               std::make_move_iterator(new_ops.end()));
-    QNN_LOG_INFO("Remove useless ops");
-    // And then remove 0~14
-    ops.erase(ops.begin() + start_id,
-              ops.begin() + start_id + 13 + 1);
-  }
+  // Add new graph
+  QNN_LOG_INFO("Add new ops");
+  ops.insert(ops.begin() + start_id + pattern_size,
+             std::make_move_iterator(new_ops.begin()),
+             std::make_move_iterator(new_ops.end()));
+  // And then remove original pattern
+  QNN_LOG_INFO("Remove useless ops");
+  ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
 
   return true;
 }
