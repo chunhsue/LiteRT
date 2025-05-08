@@ -13,26 +13,26 @@
 
 namespace qnn {
 
-bool FuseMatMulConvert1(std::vector<OpWrapper>& ops, size_t start_id,
+bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
                         TensorPool& tensor_pool) {
   if (&ops[start_id].GetOutputTensor(0) ==
       &ops[start_id + 1].GetInputTensor(0)) {
     ops[start_id].StealOutputs(ops[start_id + 1]);
     ops.erase(ops.begin() + start_id + 1);
-    QNN_LOG_INFO("Start FuseMatMulConvert1");
+    QNN_LOG_INFO("[G2G] MatMul-convert fusion (Decode)");
     return true;
   } else {
     return false;
   }
 }
 
-bool FuseMatMulConvert2(std::vector<OpWrapper>& ops, size_t start_id,
+bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
                         TensorPool& tensor_pool) {
   if (&ops[start_id].GetOutputTensor(0) ==
       &ops[start_id + 2].GetInputTensor(0)) {
     ops[start_id].StealOutputs(ops[start_id + 2]);
     ops.erase(ops.begin() + start_id + 2);
-    QNN_LOG_INFO("Start FuseMatMulConvert2");
+    QNN_LOG_INFO("[G2G] MatMul-convert fusion (Prefill)");
     return true;
   } else {
     return false;

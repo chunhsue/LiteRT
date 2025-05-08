@@ -18,8 +18,8 @@ constexpr std::array<QnnOpCode, 2> kMatMulConvertDecode = {
     QnnOpCode::kConvert,
 };
 
-bool FuseMatMulConvert1(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool);
+bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
+                             TensorPool& tensor_pool);
 
 constexpr std::array<QnnOpCode, 3> kMatMulConvertPrefill = {
     QnnOpCode::kMatMul,
@@ -27,8 +27,8 @@ constexpr std::array<QnnOpCode, 3> kMatMulConvertPrefill = {
     QnnOpCode::kConvert,
 };
 
-bool FuseMatMulConvert2(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool);
+bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
+                              TensorPool& tensor_pool);
 
 }  // namespace qnn
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_

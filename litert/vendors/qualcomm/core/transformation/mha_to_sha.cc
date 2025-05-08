@@ -36,7 +36,6 @@ std::vector<OpWrapper> PreprocessPrefill(
     TensorPool& tensor_pool, const qnn::TensorWrapper& input_tensor,
     const qnn::TensorWrapper& transpose_perm,
     const std::vector<uint32_t>& transpose_output_dims) {
-  QNN_LOG_INFO("Prefill preprocess");
   std::vector<OpWrapper> res;
 
   // Transpose
@@ -63,7 +62,7 @@ std::vector<OpWrapper> PreprocessPrefill(
 
 bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
                        TensorPool& tensor_pool) {
-  QNN_LOG_INFO("Start TransformMHAToSHA");
+  QNN_LOG_INFO("[G2G] MHA optimization");
   std::vector<OpWrapper> new_ops;
 
   const qnn::TensorWrapper* pattern_input_ptr =
@@ -165,7 +164,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
       split_outputs, num_heads);
   std::move(split.begin(), split.end(), std::back_inserter(new_ops));
 
-  std::array<::qnn::TensorWrapper*, 4> concat_aftet_mha;
+  std::array<::qnn::TensorWrapper*, 4> concat_after_mha;
 
   for (int i = 0; i < num_heads; ++i) {
     // Mul
@@ -258,7 +257,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
     // Add
     auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
         reshape_output, matmul1_v_output.GetDims());
-    concat_aftet_mha[i] = &add_final_output;
+    concat_after_mha[i] = &add_final_output;
     auto add_final = BuildElementwiseAddOp(
         tensor_pool, {matmul1_v_output, matmul2_v_output}, {add_final_output});
     std::move(add_final.begin(), add_final.end(), std::back_inserter(new_ops));
@@ -266,7 +265,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   // Concat
   std::vector<::qnn::TensorWrapperRef> concat_final_inputs;
   for (int i = 0; i < num_heads; ++i) {
-    concat_final_inputs.emplace_back(*(concat_aftet_mha[i]));
+    concat_final_inputs.emplace_back(*(concat_after_mha[i]));
   }
   auto concat_dims = reshape_output.GetDims();
   concat_dims.insert(concat_dims.begin(), 1);
@@ -282,13 +281,10 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
                      {const_cast<::qnn::TensorWrapper&>(reshape_output)});
   std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
 
-  // Add new graph
-  QNN_LOG_INFO("Add new ops");
+  // Replace the matched pattern with a newly generated subgraph
   ops.insert(ops.begin() + start_id + pattern_size,
              std::make_move_iterator(new_ops.begin()),
              std::make_move_iterator(new_ops.end()));
-  // And then remove original pattern
-  QNN_LOG_INFO("Remove useless ops");
   ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
 
   return true;
