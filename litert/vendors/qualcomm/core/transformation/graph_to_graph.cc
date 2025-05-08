@@ -17,65 +17,53 @@ namespace {
 
 constexpr size_t kQnnOpCodeSize = static_cast<size_t>(QnnOpCode::kUnknown);
 
-constexpr std::array<size_t, kQnnOpCodeSize> create_bad_match_table(
-    const QnnOpCode* op_codes, size_t pattern_length) {
-  std::array<size_t, kQnnOpCodeSize> table{};
-  for (size_t i = 0; i < table.size(); ++i) {
-    table[i] = pattern_length;
-  }
-  for (size_t i = 0; i < pattern_length - 1; ++i) {
-    table[static_cast<size_t>(op_codes[i])] = pattern_length - i - 1;
+std::vector<size_t> CreateBadMatchTable(
+    const std::vector<QnnOpCode>& op_codes) {
+  std::vector<size_t> table(kQnnOpCodeSize, op_codes.size());
+  for (size_t i = 0; i < op_codes.size() - 1; ++i) {
+    table[static_cast<size_t>(op_codes[i])] = op_codes.size() - i - 1;
   }
   return table;
 }
 
-bool MatchPattern(size_t& end_id, const std::vector<OpWrapper>& ops,
-                  const QnnOpCode* op_codes, size_t pattern_length,
-                  const std::array<size_t, kQnnOpCodeSize>& bad_match_table) {
-  if (end_id < pattern_length - 1) {
-    end_id = pattern_length - 1;
-    return false;
-  }
-  if (end_id >= ops.size()) {
-    end_id = ops.size();
-    return false;
-  }
-  for (size_t i = 0; i < pattern_length; ++i) {
-    if (!ops[end_id - i].IsOpType(op_codes[pattern_length - i - 1])) {
+size_t FindPattern(size_t end_id, const std::vector<OpWrapper>& ops,
+                   const std::vector<QnnOpCode>& op_codes,
+                   const std::vector<size_t>& bad_match_table) {
+  while (end_id >= (op_codes.size() - 1) && end_id < ops.size()) {
+    bool found_pattern = true;
+    for (size_t i = 0; i < op_codes.size(); ++i) {
+      if (!ops[end_id - i].IsOpType(op_codes[op_codes.size() - i - 1])) {
+        found_pattern = false;
+        break;
+      }
+    }
+    if (found_pattern) {
+      return end_id;
+    } else {
       end_id += bad_match_table[static_cast<size_t>(ops[end_id].GetOpCode())];
-      return false;
     }
   }
-  return true;
+  return ops.size();
 }
 
 typedef bool (*G2GTransform)(std::vector<OpWrapper>&, size_t, TensorPool&);
 void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
-               const QnnOpCode* op_codes, size_t pattern_length,
-               const std::array<size_t, kQnnOpCodeSize>& bad_match_table,
+               const std::vector<QnnOpCode>& op_codes,
                G2GTransform custom_transform) {
-  size_t end_id = 0;
-  while (end_id != ops.size()) {
-    if (MatchPattern(end_id, ops, op_codes, pattern_length, bad_match_table)) {
-      if (custom_transform(ops, end_id - (pattern_length - 1), tensor_pool)) {
-        QNN_LOG_INFO("[G2G] Transformation completed successfully.");
-      }
-      end_id += 1;
+  auto bad_match_table = CreateBadMatchTable(op_codes);
+  for (const auto& e : op_codes) {
+    QNN_LOG_DEBUG("Bad %d: %d", e, bad_match_table[static_cast<int>(e)]);
+  }
+  size_t end_id = op_codes.size() - 1;
+  while (end_id < ops.size()) {
+    end_id = FindPattern(end_id, ops, op_codes, bad_match_table);
+    if (end_id < ops.size() &&
+        custom_transform(ops, end_id - (op_codes.size() - 1), tensor_pool)) {
+      QNN_LOG_INFO("[G2G] Transformation completed successfully.");
     }
+    end_id += 1;
   }
 }
-
-// MatMul-Convert Fusion
-constexpr auto kBadMatchTableMatMulConvertDecode = create_bad_match_table(
-    kMatMulConvertDecode.data(), kMatMulConvertDecode.size());
-constexpr auto kBadMatchTableMatMulConvertPrefill = create_bad_match_table(
-    kMatMulConvertPrefill.data(), kMatMulConvertPrefill.size());
-
-// MHA-to-SHA Transformation
-constexpr auto kBadMatchTableGemma3MHAToSHAPrefill = create_bad_match_table(
-    kGemma3MHAToSHAPrefill.data(), kGemma3MHAToSHAPrefill.size());
-constexpr auto kBadMatchTableGemma3MHAToSHADecode = create_bad_match_table(
-    kGemma3MHAToSHADecode.data(), kGemma3MHAToSHADecode.size());
 
 enum class G2GConfig : uint32_t {
   // Enable G2G
@@ -112,25 +100,16 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
 
   // MatMul-convert Fusion
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMatMulConvert)) {
-    // Create pattern
-    Transform(ops, tensor_pool, kMatMulConvertDecode.data(),
-              kMatMulConvertDecode.size(), kBadMatchTableMatMulConvertDecode,
-              FuseMatMulConvertDecode);
-    Transform(ops, tensor_pool, kMatMulConvertPrefill.data(),
-              kMatMulConvertPrefill.size(), kBadMatchTableMatMulConvertPrefill,
+    Transform(ops, tensor_pool, kMatMulConvertDecode, FuseMatMulConvertDecode);
+    Transform(ops, tensor_pool, kMatMulConvertPrefill,
               FuseMatMulConvertPrefill);
   }
   // MHA Optimization
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
-    Transform(ops, tensor_pool, kGemma3MHAToSHADecode.data(),
-              kGemma3MHAToSHADecode.size(), kBadMatchTableGemma3MHAToSHADecode,
-              TransformMHAToSHA);
+    Transform(ops, tensor_pool, kGemma3MHAToSHADecode, TransformMHAToSHA);
   }
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
-    QNN_LOG_INFO("Prefill..");
-    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill.data(),
-              kGemma3MHAToSHAPrefill.size(),
-              kBadMatchTableGemma3MHAToSHAPrefill, TransformMHAToSHA);
+    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill, TransformMHAToSHA);
   }
 }
 }  // namespace qnn

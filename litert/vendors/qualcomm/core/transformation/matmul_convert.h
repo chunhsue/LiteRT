@@ -4,7 +4,6 @@
 #ifndef ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_
 #define ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_
 
-#include <array>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/op_code.h"
@@ -13,7 +12,7 @@
 
 namespace qnn {
 
-constexpr std::array<QnnOpCode, 2> kMatMulConvertDecode = {
+const std::vector<QnnOpCode> kMatMulConvertDecode = {
     QnnOpCode::kMatMul,
     QnnOpCode::kConvert,
 };
@@ -21,7 +20,7 @@ constexpr std::array<QnnOpCode, 2> kMatMulConvertDecode = {
 bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
                              TensorPool& tensor_pool);
 
-constexpr std::array<QnnOpCode, 3> kMatMulConvertPrefill = {
+const std::vector<QnnOpCode> kMatMulConvertPrefill = {
     QnnOpCode::kMatMul,
     QnnOpCode::kMatMul,
     QnnOpCode::kConvert,

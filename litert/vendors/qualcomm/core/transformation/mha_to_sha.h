@@ -4,7 +4,6 @@
 #ifndef ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_SHA_TO_MHA_H_
 #define ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_SHA_TO_MHA_H_
 
-#include <array>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/op_code.h"
@@ -13,7 +12,7 @@
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 namespace qnn {
 
-constexpr std::array<QnnOpCode, 18> kGemma3MHAToSHAPrefill = {
+const std::vector<QnnOpCode> kGemma3MHAToSHAPrefill = {
     QnnOpCode::kElementWiseMultiply,
     QnnOpCode::kTranspose,
     QnnOpCode::kReshape,
@@ -34,7 +33,7 @@ constexpr std::array<QnnOpCode, 18> kGemma3MHAToSHAPrefill = {
     QnnOpCode::kReshape,
 };
 
-constexpr std::array<QnnOpCode, 14> kGemma3MHAToSHADecode = {
+const std::vector<QnnOpCode> kGemma3MHAToSHADecode = {
     QnnOpCode::kElementWiseMultiply,
     QnnOpCode::kMatMul,
     QnnOpCode::kMatMul,
