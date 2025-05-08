@@ -57,12 +57,10 @@ void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
   size_t end_id = 0;
   while (end_id != ops.size()) {
     if (MatchPattern(end_id, ops, op_codes, pattern_length, bad_match_table)) {
-      if (!custom_transform(ops, end_id - (pattern_length - 1), tensor_pool)) {
-        end_id += pattern_length;
-      } else {
-        end_id += 1;
+      if (custom_transform(ops, end_id - (pattern_length - 1), tensor_pool)) {
         QNN_LOG_INFO("[G2G] Transformation completed successfully.");
       }
+      end_id += 1;
     }
   }
 }
@@ -81,15 +79,15 @@ constexpr auto kBadMatchTableGemma3MHAToSHADecode = create_bad_match_table(
 
 enum class G2GConfig : uint32_t {
   // Enable G2G
-  kEnabled = 0x00000001,
+  kEnabled = 0b0001,
   // Enable G2G MatMul-convert fusion
-  kMatMulConvert = 0x00000011,
+  kMatMulConvert = 0b0011,
   // Enable G2G MHA optimization for prefill only
-  kMHAOptPrefill = 0x00001011,
+  kMHAOptPrefill = 0b1011,
   // Enable G2G MHA optimization for decode only
-  kMHAOptDecode = 0x00000111,
+  kMHAOptDecode = 0b0111,
   // Enable G2G MHA optimization for both decode and prefill
-  kMHAOpt = 0x00001111,
+  kMHAOpt = 0b1111,
 };
 
 bool IsG2GOptionEQ(G2GConfig source, G2GConfig target) {
@@ -114,6 +112,7 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
 
   // MatMul-convert Fusion
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMatMulConvert)) {
+    // Create pattern
     Transform(ops, tensor_pool, kMatMulConvertDecode.data(),
               kMatMulConvertDecode.size(), kBadMatchTableMatMulConvertDecode,
               FuseMatMulConvertDecode);
@@ -122,12 +121,13 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
               FuseMatMulConvertPrefill);
   }
   // MHA Optimization
-  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
+  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
     Transform(ops, tensor_pool, kGemma3MHAToSHADecode.data(),
               kGemma3MHAToSHADecode.size(), kBadMatchTableGemma3MHAToSHADecode,
               TransformMHAToSHA);
   }
-  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
+  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
+    QNN_LOG_INFO("Prefill..");
     Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill.data(),
               kGemma3MHAToSHAPrefill.size(),
               kBadMatchTableGemma3MHAToSHAPrefill, TransformMHAToSHA);
