@@ -79,25 +79,58 @@ constexpr auto kBadMatchTableGemma3MHAToSHAPrefill = create_bad_match_table(
 constexpr auto kBadMatchTableGemma3MHAToSHADecode = create_bad_match_table(
     kGemma3MHAToSHADecode.data(), kGemma3MHAToSHADecode.size());
 
+enum class G2GConfig : uint32_t {
+  // Enable G2G
+  kEnabled = 0x00000001,
+  // Enable G2G MatMul-convert fusion
+  kMatMulConvert = 0x00000011,
+  // Enable G2G MHA optimization for prefill only
+  kMHAOptPrefill = 0x00001011,
+  // Enable G2G MHA optimization for decode only
+  kMHAOptDecode = 0x00000111,
+  // Enable G2G MHA optimization for both decode and prefill
+  kMHAOpt = 0x00001111,
+};
+
+bool IsG2GOptionEQ(G2GConfig source, G2GConfig target) {
+  return (static_cast<uint32_t>(source) & static_cast<uint32_t>(target)) ==
+         static_cast<uint32_t>(target);
+}
+
+bool IsG2GOptionNE(G2GConfig source, G2GConfig target) {
+  return !IsG2GOptionEQ(source, target);
+}
+
 }  // namespace
 
 // TODO (jiunkaiy): Add more G2G transformation.
 void GraphToGraphTransform(std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool) {
-  // MatMul-Convert Fusion
-  Transform(ops, tensor_pool, kMatMulConvertDecode.data(),
-            kMatMulConvertDecode.size(), kBadMatchTableMatMulConvertDecode,
-            FuseMatMulConvertDecode);
-  Transform(ops, tensor_pool, kMatMulConvertPrefill.data(),
-            kMatMulConvertPrefill.size(), kBadMatchTableMatMulConvertPrefill,
-            FuseMatMulConvertPrefill);
+  // TODO(jiunkaiy): Move to LiteRtOption.
+  const G2GConfig g2g_option = G2GConfig::kMHAOptPrefill;
+  if (IsG2GOptionNE(g2g_option, G2GConfig::kEnabled)) {
+    return;
+  }
 
-  // TODO (jiunkaiy): MHA->SHA Transformation
-  Transform(ops, tensor_pool, kGemma3MHAToSHADecode.data(),
-            kGemma3MHAToSHADecode.size(), kBadMatchTableGemma3MHAToSHADecode,
-            TransformMHAToSHA);
-  Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill.data(),
-            kGemma3MHAToSHAPrefill.size(), kBadMatchTableGemma3MHAToSHAPrefill,
-            TransformMHAToSHA);
+  // MatMul-convert Fusion
+  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMatMulConvert)) {
+    Transform(ops, tensor_pool, kMatMulConvertDecode.data(),
+              kMatMulConvertDecode.size(), kBadMatchTableMatMulConvertDecode,
+              FuseMatMulConvertDecode);
+    Transform(ops, tensor_pool, kMatMulConvertPrefill.data(),
+              kMatMulConvertPrefill.size(), kBadMatchTableMatMulConvertPrefill,
+              FuseMatMulConvertPrefill);
+  }
+  // MHA Optimization
+  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
+    Transform(ops, tensor_pool, kGemma3MHAToSHADecode.data(),
+              kGemma3MHAToSHADecode.size(), kBadMatchTableGemma3MHAToSHADecode,
+              TransformMHAToSHA);
+  }
+  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
+    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill.data(),
+              kGemma3MHAToSHAPrefill.size(),
+              kBadMatchTableGemma3MHAToSHAPrefill, TransformMHAToSHA);
+  }
 }
 }  // namespace qnn
