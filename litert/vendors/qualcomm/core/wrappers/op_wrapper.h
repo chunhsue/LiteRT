@@ -52,7 +52,7 @@ class OpWrapper final {
 
   const qnn::TensorWrapper& GetOutputTensor(size_t i) const;
 
-  const qnn::TensorWrapper& GetPararmTensor(size_t i) const;
+  const qnn::TensorParamWrapper& GetTensorPararm(size_t i) const;
 
   void StealOutputs(const OpWrapper& other);
 

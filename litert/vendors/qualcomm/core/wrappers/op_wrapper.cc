@@ -107,8 +107,8 @@ const qnn::TensorWrapper& OpWrapper::GetOutputTensor(size_t i) const {
   return output_tensors_[i].get();
 }
 
-const qnn::TensorWrapper& OpWrapper::GetPararmTensor(size_t i) const {
-  return tensor_params_[i].GetTensor();
+const qnn::TensorParamWrapper& OpWrapper::GetTensorPararm(size_t i) const {
+  return tensor_params_[i];
 }
 
 void OpWrapper::StealOutputs(const OpWrapper& other) {

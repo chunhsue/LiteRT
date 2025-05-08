@@ -78,7 +78,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   if ((*pattern_input_ptr).GetDim(1) != 1) {
     auto preprocess_ops = PreprocessPrefill(
         tensor_pool, *pattern_input_ptr,
-        ops[start_id + kTransposeIndex].GetPararmTensor(0),
+        ops[start_id + kTransposeIndex].GetTensorPararm(0).GetTensor(),
         ops[start_id + kTransposeIndex].GetOutputTensor(0).GetDims());
     std::move(preprocess_ops.begin(), preprocess_ops.end(),
               std::back_inserter(new_ops));
