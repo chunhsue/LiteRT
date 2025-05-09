@@ -32,92 +32,40 @@ constexpr size_t kMatMulV1Index = 10;
 constexpr size_t kMatMulV2Index = 11;
 }  // namespace
 
-std::vector<OpWrapper> PreprocessPrefill(
-    TensorPool& tensor_pool, const qnn::TensorWrapper& input_tensor,
-    const qnn::TensorWrapper& transpose_perm,
-    const std::vector<uint32_t>& transpose_output_dims) {
-  std::vector<OpWrapper> res;
-
-  // Transpose
-  auto& transpose_output =
-      tensor_pool.CloneNativeTensorFrom(input_tensor, transpose_output_dims);
-  auto transpose =
-      BuildTransposeOp(tensor_pool,
-                       {const_cast<::qnn::TensorWrapper&>(input_tensor),
-                        const_cast<::qnn::TensorWrapper&>(transpose_perm)},
-                       {transpose_output});
-  std::move(transpose.begin(), transpose.end(), std::back_inserter(res));
-
-  // Reshape
-  auto& reshape_output = tensor_pool.CloneNativeTensorFrom(
-      input_tensor, {transpose_output_dims[0], 1,
-                     transpose_output_dims[1] * transpose_output_dims[2],
-                     transpose_output_dims[3]});
-  auto reshape =
-      BuildReshapeOp(tensor_pool, {transpose_output}, {reshape_output});
-  std::move(reshape.begin(), reshape.end(), std::back_inserter(res));
-
-  return res;
-}
-
-bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
-                       TensorPool& tensor_pool) {
-  QNN_LOG_INFO("[G2G] MHA optimization");
+std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
+                                      size_t start_id, TensorPool& tensor_pool,
+                                      const qnn::TensorWrapper& mha_input,
+                                      const qnn::TensorWrapper& mha_output,
+                                      const ::qnn::OpWrapper& first_mul,
+                                      size_t num_heads, int32_t seq_len) {
   std::vector<OpWrapper> new_ops;
 
-  const qnn::TensorWrapper* pattern_input_ptr =
-      &(ops[start_id].GetInputTensor(0));  // Mul's input
-  const auto& mul_const = ops[start_id + kMulIndex].GetInputTensor(1);
+  const auto& mul_const = first_mul.GetInputTensor(1);
   const auto& mul_output_quant_param =
-      ops[start_id + kMulIndex].GetOutputTensor(0).GetQuantParams();
+      first_mul.GetOutputTensor(0).GetQuantParams();
 
-  const int num_heads = (*pattern_input_ptr).GetDim(2);
-  int seq_len = (*pattern_input_ptr).GetDim(1);
-  size_t id_offset = 0;
-  size_t pattern_size = kGemma3MHAToSHADecode.size();
-  if ((*pattern_input_ptr).GetDim(1) != 1) {
-    auto preprocess_ops = PreprocessPrefill(
-        tensor_pool, *pattern_input_ptr,
-        ops[start_id + kTransposeIndex].GetTensorPararm(0).GetTensor(),
-        ops[start_id + kTransposeIndex].GetOutputTensor(0).GetDims());
-    std::move(preprocess_ops.begin(), preprocess_ops.end(),
-              std::back_inserter(new_ops));
-    id_offset = new_ops.size();
-    pattern_input_ptr = &(new_ops.back().GetOutputTensor(0));
-    pattern_size = kGemma3MHAToSHAPrefill.size();
-  }
-
-  const auto& matmulk_cache =
-      ops[start_id + kMatMulK1Index + id_offset].GetInputTensor(1);
+  const auto& matmulk_cache = ops[start_id + kMatMulK1Index].GetInputTensor(1);
   const auto& matmulk_cache_output =
-      ops[start_id + kMatMulK1Index + id_offset].GetOutputTensor(0);
-  const auto& matmulk_slice =
-      ops[start_id + kMatMulK2Index + id_offset].GetInputTensor(1);
+      ops[start_id + kMatMulK1Index].GetOutputTensor(0);
+  const auto& matmulk_slice = ops[start_id + kMatMulK2Index].GetInputTensor(1);
   const auto& matmulk_slice_output =
-      ops[start_id + kMatMulK2Index + id_offset].GetOutputTensor(0);
+      ops[start_id + kMatMulK2Index].GetOutputTensor(0);
 
   const auto& concat_mha_output =
-      ops[start_id + kConcatIndex + id_offset].GetOutputTensor(0);
+      ops[start_id + kConcatIndex].GetOutputTensor(0);
 
-  const auto& add_mha_mask =
-      ops[start_id + kAddIndex + id_offset].GetInputTensor(1);
-  const auto& add_mha_output =
-      ops[start_id + kAddIndex + id_offset].GetOutputTensor(0);
+  const auto& add_mha_mask = ops[start_id + kAddIndex].GetInputTensor(1);
+  const auto& add_mha_output = ops[start_id + kAddIndex].GetOutputTensor(0);
 
   const auto& softmax_mha_output =
-      ops[start_id + kSoftmaxIndex + id_offset].GetOutputTensor(0);
+      ops[start_id + kSoftmaxIndex].GetOutputTensor(0);
 
-  const auto& matmulv_cache =
-      ops[start_id + kMatMulV1Index + id_offset].GetInputTensor(1);
+  const auto& matmulv_cache = ops[start_id + kMatMulV1Index].GetInputTensor(1);
   const auto& matmulv_cache_output =
-      ops[start_id + kMatMulV1Index + id_offset].GetOutputTensor(0);
-  const auto& matmulv_slice =
-      ops[start_id + kMatMulV2Index + id_offset].GetInputTensor(1);
+      ops[start_id + kMatMulV1Index].GetOutputTensor(0);
+  const auto& matmulv_slice = ops[start_id + kMatMulV2Index].GetInputTensor(1);
   const auto& matmulv_slice_output =
-      ops[start_id + kMatMulV2Index + id_offset].GetOutputTensor(0);
-
-  const auto& reshape_output =
-      ops[start_id + pattern_size - 1].GetOutputTensor(0);
+      ops[start_id + kMatMulV2Index].GetOutputTensor(0);
 
   // Slice tensor for multiplied by V
   const std::vector<uint32_t> slice1_begin_dim{4};
@@ -152,16 +100,15 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
       QNN_DATATYPE_INT_32, {}, split_axis_dim,
       split_axis_data.size() * sizeof(split_axis_data[0]),
       split_axis_data.data());
-  std::vector<::qnn::TensorWrapperRef> split_outputs;
+  std::vector<::qnn::TensorWrapperRef> head_inputs;
   for (int i = 0; i < num_heads; ++i) {
     auto& split_output = tensor_pool.CloneNativeTensorFrom(
-        *pattern_input_ptr, {1, 1, static_cast<uint32_t>(seq_len), 256});
-    split_outputs.emplace_back(split_output);
+        mha_input, {1, 1, static_cast<uint32_t>(seq_len), 256});
+    head_inputs.emplace_back(split_output);
   }
   auto split = BuildSplitOp(
-      tensor_pool,
-      {split_axis, const_cast<::qnn::TensorWrapper&>(*pattern_input_ptr)},
-      split_outputs, num_heads);
+      tensor_pool, {split_axis, const_cast<::qnn::TensorWrapper&>(mha_input)},
+      head_inputs, num_heads);
   std::move(split.begin(), split.end(), std::back_inserter(new_ops));
 
   std::array<::qnn::TensorWrapper*, 4> concat_after_mha;
@@ -169,10 +116,10 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   for (int i = 0; i < num_heads; ++i) {
     // Mul
     auto& mul_output = tensor_pool.CloneNativeTensorFrom(
-        split_outputs[i].get(), mul_output_quant_param);
+        head_inputs[i].get(), mul_output_quant_param);
     auto mul = BuildElementwiseMulOp(
         tensor_pool,
-        {split_outputs[i].get(), const_cast<::qnn::TensorWrapper&>(mul_const)},
+        {head_inputs[i].get(), const_cast<::qnn::TensorWrapper&>(mul_const)},
         {mul_output});
     std::move(mul.begin(), mul.end(), std::back_inserter(new_ops));
     // MatMul 1
@@ -256,7 +203,7 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
     std::move(matmul2_v.begin(), matmul2_v.end(), std::back_inserter(new_ops));
     // Add
     auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
-        reshape_output, matmul1_v_output.GetDims());
+        mha_output, matmul1_v_output.GetDims());
     concat_after_mha[i] = &add_final_output;
     auto add_final = BuildElementwiseAddOp(
         tensor_pool, {matmul1_v_output, matmul2_v_output}, {add_final_output});
@@ -267,10 +214,10 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   for (int i = 0; i < num_heads; ++i) {
     concat_final_inputs.emplace_back(*(concat_after_mha[i]));
   }
-  auto concat_dims = reshape_output.GetDims();
+  auto concat_dims = mha_output.GetDims();
   concat_dims.insert(concat_dims.begin(), 1);
   auto& concat_output =
-      tensor_pool.CloneNativeTensorFrom(reshape_output, concat_dims);
+      tensor_pool.CloneNativeTensorFrom(mha_output, concat_dims);
   auto concat_final = BuildConcatenationOp(tensor_pool, concat_final_inputs,
                                            {concat_output}, 3);
   std::move(concat_final.begin(), concat_final.end(),
@@ -278,15 +225,86 @@ bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
   // Reshape
   auto reshape =
       BuildReshapeOp(tensor_pool, {concat_output},
-                     {const_cast<::qnn::TensorWrapper&>(reshape_output)});
+                     {const_cast<::qnn::TensorWrapper&>(mha_output)});
   std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
 
-  // Replace the matched pattern with a newly generated subgraph
+  return new_ops;
+}
+
+bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
+                        TensorPool& tensor_pool) {
+  QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
+
+  std::vector<OpWrapper> new_ops;
+  const auto& first_mul = ops[start_id + kMulIndex];
+  const auto& pattern_input = first_mul.GetInputTensor(0);
+  const size_t pattern_size = kGemma3MHAToSHAPrefill.size();
+  const auto& pattern_output =
+      ops[start_id + pattern_size - 1].GetOutputTensor(0);
+
+  // Transpose
+  auto transpose_output_dims =
+      ops[start_id + kTransposeIndex].GetOutputTensor(0).GetDims();
+  auto& transpose_output =
+      tensor_pool.CloneNativeTensorFrom(pattern_input, transpose_output_dims);
+  auto transpose = BuildTransposeOp(
+      tensor_pool,
+      {const_cast<::qnn::TensorWrapper&>(pattern_input),
+       const_cast<::qnn::TensorWrapper&>(
+           ops[start_id + kTransposeIndex].GetTensorPararm(0).GetTensor())},
+      {transpose_output});
+  std::move(transpose.begin(), transpose.end(), std::back_inserter(new_ops));
+
+  // Reshape
+  auto& reshape_output = tensor_pool.CloneNativeTensorFrom(
+      pattern_input, {transpose_output_dims[0], 1,
+                      transpose_output_dims[1] * transpose_output_dims[2],
+                      transpose_output_dims[3]});
+  auto reshape =
+      BuildReshapeOp(tensor_pool, {transpose_output}, {reshape_output});
+  std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
+
+  // Process MHA to SHA transformation.
+  const int num_heads = pattern_input.GetDim(2);
+  const int32_t seq_len = pattern_input.GetDim(1);
+  const auto& mha_input = new_ops.back().GetOutputTensor(0);
+  auto sha_ops =
+      TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, mha_input,
+                     pattern_output, first_mul, num_heads, seq_len);
+  std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
+
+  // Replace the matched pattern with a newly generated subgraph.
   ops.insert(ops.begin() + start_id + pattern_size,
              std::make_move_iterator(new_ops.begin()),
              std::make_move_iterator(new_ops.end()));
   ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
+  return true;
+}
 
+bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
+                       TensorPool& tensor_pool) {
+  QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
+
+  std::vector<OpWrapper> new_ops;
+  const auto& first_mul = ops[start_id + kMulIndex];
+  const auto& pattern_input = first_mul.GetInputTensor(0);
+  const size_t pattern_size = kGemma3MHAToSHADecode.size();
+  const auto& pattern_output =
+      ops[start_id + pattern_size - 1].GetOutputTensor(0);
+
+  // Process MHA to SHA transformation.
+  const int num_heads = pattern_input.GetDim(2);
+  const int32_t seq_len = pattern_input.GetDim(1);
+  auto sha_ops =
+      TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, pattern_input,
+                     pattern_output, first_mul, num_heads, seq_len);
+  std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
+
+  // Replace the matched pattern with a newly generated subgraph.
+  ops.insert(ops.begin() + start_id + pattern_size,
+             std::make_move_iterator(new_ops.begin()),
+             std::make_move_iterator(new_ops.end()));
+  ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
   return true;
 }
 }  // namespace qnn

@@ -50,9 +50,10 @@ const std::vector<QnnOpCode> kGemma3MHAToSHADecode = {
     QnnOpCode::kReshape,
 };
 
-bool TransformMHAToSHA(std::vector<OpWrapper>& ops, size_t start_id,
-                       TensorPool& tensor_pool);
-
+bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
+                        TensorPool& tensor_pool);
+bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
+                        TensorPool& tensor_pool);
 }  // namespace qnn
 
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_SHA_TO_MHA_H_

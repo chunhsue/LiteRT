@@ -66,6 +66,8 @@ void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
 }
 
 enum class G2GConfig : uint32_t {
+  // Disable G2G
+  kOff = 0b0000,
   // Enable G2G
   kEnabled = 0b0001,
   // Enable G2G MatMul-convert fusion
@@ -106,10 +108,10 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
   }
   // MHA Optimization
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
-    Transform(ops, tensor_pool, kGemma3MHAToSHADecode, TransformMHAToSHA);
+    Transform(ops, tensor_pool, kGemma3MHAToSHADecode, OptimizeMHADecode);
   }
   if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
-    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill, TransformMHAToSHA);
+    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill, OptimizeMHAPrefill);
   }
 }
 }  // namespace qnn
