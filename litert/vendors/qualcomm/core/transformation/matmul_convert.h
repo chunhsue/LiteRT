@@ -12,22 +12,11 @@
 
 namespace qnn {
 
-const std::vector<QnnOpCode> kMatMulConvertDecode = {
-    QnnOpCode::kMatMul,
-    QnnOpCode::kConvert,
-};
-
 bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
-                             TensorPool& tensor_pool);
-
-const std::vector<QnnOpCode> kMatMulConvertPrefill = {
-    QnnOpCode::kMatMul,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kConvert,
-};
+                             TensorPool& tensor_pool, size_t pattern_size);
 
 bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                              TensorPool& tensor_pool);
+                              TensorPool& tensor_pool, size_t pattern_size);
 
 }  // namespace qnn
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_

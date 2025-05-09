@@ -12,48 +12,10 @@
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 namespace qnn {
 
-const std::vector<QnnOpCode> kGemma3MHAToSHAPrefill = {
-    QnnOpCode::kElementWiseMultiply,
-    QnnOpCode::kTranspose,
-    QnnOpCode::kReshape,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kConcat,
-    QnnOpCode::kReshape,
-    QnnOpCode::kElementWiseAdd,
-    QnnOpCode::kReshape,
-    QnnOpCode::kSoftmax,
-    QnnOpCode::kStridedSlice,
-    QnnOpCode::kStridedSlice,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kElementWiseAdd,
-    QnnOpCode::kReshape,
-    QnnOpCode::kTranspose,
-    QnnOpCode::kReshape,
-};
-
-const std::vector<QnnOpCode> kGemma3MHAToSHADecode = {
-    QnnOpCode::kElementWiseMultiply,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kConcat,
-    QnnOpCode::kReshape,
-    QnnOpCode::kElementWiseAdd,
-    QnnOpCode::kReshape,
-    QnnOpCode::kSoftmax,
-    QnnOpCode::kStridedSlice,
-    QnnOpCode::kStridedSlice,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kMatMul,
-    QnnOpCode::kElementWiseAdd,
-    QnnOpCode::kReshape,
-};
-
 bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool);
+                        TensorPool& tensor_pool, size_t pattern_size);
 bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool);
+                       TensorPool& tensor_pool, size_t pattern_size);
 }  // namespace qnn
 
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_SHA_TO_MHA_H_

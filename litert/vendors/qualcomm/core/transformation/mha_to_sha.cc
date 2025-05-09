@@ -30,7 +30,6 @@ constexpr size_t kAddIndex = 5;
 constexpr size_t kSoftmaxIndex = 7;
 constexpr size_t kMatMulV1Index = 10;
 constexpr size_t kMatMulV2Index = 11;
-}  // namespace
 
 std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
@@ -231,14 +230,15 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
   return new_ops;
 }
 
+}  // namespace
+
 bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool) {
+                        TensorPool& tensor_pool, size_t pattern_size) {
   QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
 
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
-  const size_t pattern_size = kGemma3MHAToSHAPrefill.size();
   const auto& pattern_output =
       ops[start_id + pattern_size - 1].GetOutputTensor(0);
 
@@ -282,13 +282,12 @@ bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
 }
 
 bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
-                       TensorPool& tensor_pool) {
+                       TensorPool& tensor_pool, size_t pattern_size) {
   QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
 
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
-  const size_t pattern_size = kGemma3MHAToSHADecode.size();
   const auto& pattern_output =
       ops[start_id + pattern_size - 1].GetOutputTensor(0);
 

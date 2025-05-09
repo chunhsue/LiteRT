@@ -46,7 +46,8 @@ size_t FindPattern(size_t end_id, const std::vector<OpWrapper>& ops,
   return ops.size();
 }
 
-typedef bool (*G2GTransform)(std::vector<OpWrapper>&, size_t, TensorPool&);
+typedef bool (*G2GTransform)(std::vector<OpWrapper>&, size_t, TensorPool&,
+                             size_t);
 void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
                const std::vector<QnnOpCode>& op_codes,
                G2GTransform custom_transform) {
@@ -58,36 +59,24 @@ void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
   while (end_id < ops.size()) {
     end_id = FindPattern(end_id, ops, op_codes, bad_match_table);
     if (end_id < ops.size() &&
-        custom_transform(ops, end_id - (op_codes.size() - 1), tensor_pool)) {
+        custom_transform(ops, end_id - (op_codes.size() - 1), tensor_pool,
+                         op_codes.size())) {
       QNN_LOG_INFO("[G2G] Transformation completed successfully.");
     }
     end_id += 1;
   }
 }
 
-enum class G2GConfig : uint32_t {
-  // Disable G2G
-  kOff = 0b0000,
-  // Enable G2G
-  kEnabled = 0b0001,
-  // Enable G2G MatMul-convert fusion
-  kMatMulConvert = 0b0011,
-  // Enable G2G MHA optimization for prefill only
-  kMHAOptPrefill = 0b1011,
-  // Enable G2G MHA optimization for decode only
-  kMHAOptDecode = 0b0111,
-  // Enable G2G MHA optimization for both decode and prefill
-  kMHAOpt = 0b1111,
+enum class G2GConfig {
+  // Disable G2G.
+  kOff,
+  // Enable G2G MatMul-convert fusion.
+  kMatMulConvert,
+  // Enable G2G MHA optimization for prefill only.
+  kMHAOptPrefill,
+  // Enable G2G MHA optimization for both decode and prefill.
+  kMHAOpt,
 };
-
-bool IsG2GOptionEQ(G2GConfig source, G2GConfig target) {
-  return (static_cast<uint32_t>(source) & static_cast<uint32_t>(target)) ==
-         static_cast<uint32_t>(target);
-}
-
-bool IsG2GOptionNE(G2GConfig source, G2GConfig target) {
-  return !IsG2GOptionEQ(source, target);
-}
 
 }  // namespace
 
@@ -96,22 +85,70 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool) {
   // TODO(jiunkaiy): Move to LiteRtOption.
   const G2GConfig g2g_option = G2GConfig::kMHAOptPrefill;
-  if (IsG2GOptionNE(g2g_option, G2GConfig::kEnabled)) {
+  if (g2g_option == G2GConfig::kOff) {
     return;
   }
 
   // MatMul-convert Fusion
-  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMatMulConvert)) {
-    Transform(ops, tensor_pool, kMatMulConvertDecode, FuseMatMulConvertDecode);
-    Transform(ops, tensor_pool, kMatMulConvertPrefill,
+  if (g2g_option == G2GConfig::kMatMulConvert ||
+      g2g_option == G2GConfig::kMHAOptPrefill ||
+      g2g_option == G2GConfig::kMHAOpt) {
+    const std::vector<QnnOpCode> matmul_convert_decode = {
+        QnnOpCode::kMatMul,
+        QnnOpCode::kConvert,
+    };
+    Transform(ops, tensor_pool, matmul_convert_decode, FuseMatMulConvertDecode);
+    const std::vector<QnnOpCode> matmul_convert_prefill = {
+        QnnOpCode::kMatMul,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kConvert,
+    };
+    Transform(ops, tensor_pool, matmul_convert_prefill,
               FuseMatMulConvertPrefill);
   }
   // MHA Optimization
-  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptDecode)) {
-    Transform(ops, tensor_pool, kGemma3MHAToSHADecode, OptimizeMHADecode);
+  if (g2g_option == G2GConfig::kMHAOpt) {
+    const std::vector<QnnOpCode> gemma3_mha_decode = {
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kConcat,
+        QnnOpCode::kReshape,
+        QnnOpCode::kElementWiseAdd,
+        QnnOpCode::kReshape,
+        QnnOpCode::kSoftmax,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kElementWiseAdd,
+        QnnOpCode::kReshape,
+    };
+    Transform(ops, tensor_pool, gemma3_mha_decode, OptimizeMHADecode);
   }
-  if (IsG2GOptionEQ(g2g_option, G2GConfig::kMHAOptPrefill)) {
-    Transform(ops, tensor_pool, kGemma3MHAToSHAPrefill, OptimizeMHAPrefill);
+  if (g2g_option == G2GConfig::kMHAOptPrefill ||
+      g2g_option == G2GConfig::kMHAOpt) {
+    const std::vector<QnnOpCode> gemma3_mha_prefill = {
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kTranspose,
+        QnnOpCode::kReshape,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kConcat,
+        QnnOpCode::kReshape,
+        QnnOpCode::kElementWiseAdd,
+        QnnOpCode::kReshape,
+        QnnOpCode::kSoftmax,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kMatMul,
+        QnnOpCode::kElementWiseAdd,
+        QnnOpCode::kReshape,
+        QnnOpCode::kTranspose,
+        QnnOpCode::kReshape,
+    };
+    Transform(ops, tensor_pool, gemma3_mha_prefill, OptimizeMHAPrefill);
   }
 }
 }  // namespace qnn

@@ -14,7 +14,7 @@
 namespace qnn {
 
 bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool) {
+                             TensorPool& tensor_pool, size_t pattern_size) {
   if (&ops[start_id].GetOutputTensor(0) ==
       &ops[start_id + 1].GetInputTensor(0)) {
     ops[start_id].StealOutputs(ops[start_id + 1]);
@@ -27,7 +27,7 @@ bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
 }
 
 bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool) {
+                              TensorPool& tensor_pool, size_t pattern_size) {
   if (&ops[start_id].GetOutputTensor(0) ==
       &ops[start_id + 2].GetInputTensor(0)) {
     ops[start_id].StealOutputs(ops[start_id + 2]);
