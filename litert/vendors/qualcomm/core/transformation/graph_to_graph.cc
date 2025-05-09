@@ -52,9 +52,6 @@ void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
                const std::vector<QnnOpCode>& op_codes,
                G2GTransform custom_transform) {
   auto bad_match_table = CreateBadMatchTable(op_codes);
-  for (const auto& e : op_codes) {
-    QNN_LOG_DEBUG("Bad %d: %d", e, bad_match_table[static_cast<int>(e)]);
-  }
   size_t end_id = op_codes.size() - 1;
   while (end_id < ops.size()) {
     end_id = FindPattern(end_id, ops, op_codes, bad_match_table);
