@@ -3,13 +3,11 @@
 
 #include "litert/vendors/qualcomm/core/transformation/graph_to_graph.h"
 
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <iterator>
 #include <vector>
 
-#include "QnnTypes.h"  // from @qairt
+#include <gtest/gtest.h>
 #include "litert/vendors/qualcomm/core/builders/concatenation_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/elementwise_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/matmul_op_builder.h"
@@ -23,6 +21,7 @@
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
 #include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
+#include "QnnTypes.h"  // from @qairt
 
 namespace qnn {
 namespace {
