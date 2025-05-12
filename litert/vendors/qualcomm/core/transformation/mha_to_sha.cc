@@ -18,6 +18,7 @@
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "QnnInterface.h"  // from @qairt
 
 namespace qnn {
 namespace {
@@ -232,10 +233,14 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
 
 }  // namespace
 
-bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                        TensorPool& tensor_pool, size_t pattern_size) {
+size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
+                          Qnn_BackendHandle_t backend,
+                          std::vector<OpWrapper>& ops, size_t start_id,
+                          TensorPool& tensor_pool, size_t pattern_size) {
+  // TODO(jiunkaiy): Add connection check.
+  // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
-
+  auto back_iter = tensor_pool.GetBackIter();
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
@@ -273,18 +278,38 @@ bool OptimizeMHAPrefill(std::vector<OpWrapper>& ops, size_t start_id,
                      pattern_output, first_mul, num_heads, seq_len);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
-  // Replace the matched pattern with a newly generated subgraph.
-  ops.insert(ops.begin() + start_id + pattern_size,
-             std::make_move_iterator(new_ops.begin()),
-             std::make_move_iterator(new_ops.end()));
-  ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
-  return true;
+  // Validate new graph.
+  // TODO(jiunkaiy): Disable bypassing Split int16 op validator.
+  const bool is_valid = std::all_of(
+      new_ops.begin(), new_ops.end(),
+      [api, backend](::qnn::OpWrapper& op_wrapper) -> bool {
+        return op_wrapper.IsOpCode(QnnOpCode::kSplit) || api == nullptr ||
+               (QNN_SUCCESS == api->backendValidateOpConfig(
+                                   backend, op_wrapper.GetOpConfig()));
+      });
+  if (is_valid) {
+    // Replace the matched pattern with a newly generated subgraph.
+    size_t step_size = new_ops.size();
+    ops.insert(ops.begin() + start_id + pattern_size,
+               std::make_move_iterator(new_ops.begin()),
+               std::make_move_iterator(new_ops.end()));
+    ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
+    return step_size;
+  }
+  QNN_LOG_WARNING(
+      "[G2G] Validation failed. Rolling back to the original graph.");
+  tensor_pool.EraseAfter(back_iter);
+  return 1;
 }
 
-bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
-                       TensorPool& tensor_pool, size_t pattern_size) {
+size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
+                         Qnn_BackendHandle_t backend,
+                         std::vector<OpWrapper>& ops, size_t start_id,
+                         TensorPool& tensor_pool, size_t pattern_size) {
+  // TODO(jiunkaiy): Add connection check.
+  // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
-
+  auto back_iter = tensor_pool.GetBackIter();
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
@@ -299,11 +324,27 @@ bool OptimizeMHADecode(std::vector<OpWrapper>& ops, size_t start_id,
                      pattern_output, first_mul, num_heads, seq_len);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
-  // Replace the matched pattern with a newly generated subgraph.
-  ops.insert(ops.begin() + start_id + pattern_size,
-             std::make_move_iterator(new_ops.begin()),
-             std::make_move_iterator(new_ops.end()));
-  ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
-  return true;
+  // Validate new graph.
+  // TODO(jiunkaiy): Disable bypassing Split int16 op validator.
+  const bool is_valid = std::all_of(
+      new_ops.begin(), new_ops.end(),
+      [api, backend](::qnn::OpWrapper& op_wrapper) -> bool {
+        return op_wrapper.IsOpCode(QnnOpCode::kSplit) || api == nullptr ||
+               (QNN_SUCCESS == api->backendValidateOpConfig(
+                                   backend, op_wrapper.GetOpConfig()));
+      });
+  if (is_valid) {
+    // Replace the matched pattern with a newly generated subgraph.
+    size_t step_size = new_ops.size();
+    ops.insert(ops.begin() + start_id + pattern_size,
+               std::make_move_iterator(new_ops.begin()),
+               std::make_move_iterator(new_ops.end()));
+    ops.erase(ops.begin() + start_id, ops.begin() + start_id + pattern_size);
+    return step_size;
+  }
+  QNN_LOG_WARNING(
+      "[G2G] Validation failed. Rolling back to the original graph.");
+  tensor_pool.EraseAfter(back_iter);
+  return 1;
 }
 }  // namespace qnn

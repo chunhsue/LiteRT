@@ -4,6 +4,7 @@
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 
 #include <cstdint>
+#include <iterator>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
@@ -97,6 +98,14 @@ TensorWrapper& TensorPool::CloneStaticTensorFrom(
       src.qnn_tensor_.v2.clientBuf.data);
 
   return back;
+}
+
+std::list<TensorWrapper>::const_iterator TensorPool::GetBackIter() const {
+  return std::prev(tensor_wrappers_.end());
+}
+
+void TensorPool::EraseAfter(std::list<TensorWrapper>::const_iterator it) {
+  tensor_wrappers_.erase(std::next(it), tensor_wrappers_.end());
 }
 
 }  // namespace qnn

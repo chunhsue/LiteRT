@@ -9,13 +9,18 @@
 #include "litert/vendors/qualcomm/core/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "QnnInterface.h"  // from @qairt
 
 namespace qnn {
 
-bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
+size_t FuseMatMulConvertDecode(const QNN_INTERFACE_VER_TYPE* api,
+                             Qnn_BackendHandle_t backend,
+                             std::vector<OpWrapper>& ops, size_t start_id,
                              TensorPool& tensor_pool, size_t pattern_size);
 
-bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
+size_t FuseMatMulConvertPrefill(const QNN_INTERFACE_VER_TYPE* api,
+                              Qnn_BackendHandle_t backend,
+                              std::vector<OpWrapper>& ops, size_t start_id,
                               TensorPool& tensor_pool, size_t pattern_size);
 
 }  // namespace qnn

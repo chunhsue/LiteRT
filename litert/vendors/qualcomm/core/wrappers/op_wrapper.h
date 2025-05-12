@@ -56,6 +56,8 @@ class OpWrapper final {
 
   void StealOutputs(const OpWrapper& other);
 
+  void SwapOutputs(const OpWrapper& other);
+
  private:
   const char* type_name_{nullptr};
   std::string name_{};  // human readable name

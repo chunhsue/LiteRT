@@ -8,8 +8,12 @@
 
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "QnnInterface.h"  // from @qairt
+
 namespace qnn {
-void GraphToGraphTransform(std::vector<OpWrapper>& ops,
+void GraphToGraphTransform(const QNN_INTERFACE_VER_TYPE* api,
+                           Qnn_BackendHandle_t backend,
+                           std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool);
 }  // namespace qnn
 

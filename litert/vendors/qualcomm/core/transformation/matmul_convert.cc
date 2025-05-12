@@ -10,33 +10,56 @@
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "QnnInterface.h"  // from @qairt
 
 namespace qnn {
 
-bool FuseMatMulConvertDecode(std::vector<OpWrapper>& ops, size_t start_id,
-                             TensorPool& tensor_pool, size_t pattern_size) {
-  if (&ops[start_id].GetOutputTensor(0) ==
+size_t FuseMatMulConvertDecode(const QNN_INTERFACE_VER_TYPE* api,
+                               Qnn_BackendHandle_t backend,
+                               std::vector<OpWrapper>& ops, size_t start_id,
+                               TensorPool& tensor_pool, size_t pattern_size) {
+  // Connection check
+  if (&ops[start_id].GetOutputTensor(0) !=
       &ops[start_id + 1].GetInputTensor(0)) {
-    ops[start_id].StealOutputs(ops[start_id + 1]);
-    ops.erase(ops.begin() + start_id + 1);
-    QNN_LOG_INFO("[G2G] MatMul-convert fusion (Decode)");
-    return true;
-  } else {
-    return false;
+    return 1;
   }
+  // Graph transform
+  QNN_LOG_INFO("[G2G] MatMul-convert fusion (Decode)");
+  ops[start_id].SwapOutputs(ops[start_id + 1]);
+  if (api == nullptr ||
+      QNN_SUCCESS ==
+          api->backendValidateOpConfig(backend, ops[start_id].GetOpConfig())) {
+    ops.erase(ops.begin() + start_id + 1);
+  } else {
+    QNN_LOG_WARNING(
+        "[G2G] Validation failed. Rolling back to the original graph.");
+    ops[start_id].SwapOutputs(ops[start_id + 1]);
+  }
+  return 1;
 }
 
-bool FuseMatMulConvertPrefill(std::vector<OpWrapper>& ops, size_t start_id,
-                              TensorPool& tensor_pool, size_t pattern_size) {
-  if (&ops[start_id].GetOutputTensor(0) ==
+size_t FuseMatMulConvertPrefill(const QNN_INTERFACE_VER_TYPE* api,
+                                Qnn_BackendHandle_t backend,
+                                std::vector<OpWrapper>& ops, size_t start_id,
+                                TensorPool& tensor_pool, size_t pattern_size) {
+  // Connection check
+  if (&ops[start_id].GetOutputTensor(0) !=
       &ops[start_id + 2].GetInputTensor(0)) {
-    ops[start_id].StealOutputs(ops[start_id + 2]);
-    ops.erase(ops.begin() + start_id + 2);
-    QNN_LOG_INFO("[G2G] MatMul-convert fusion (Prefill)");
-    return true;
-  } else {
-    return false;
+    return 1;
   }
+  // Graph transform
+  QNN_LOG_INFO("[G2G] MatMul-convert fusion (Prefill)");
+  ops[start_id].SwapOutputs(ops[start_id + 2]);
+  if (api == nullptr ||
+      QNN_SUCCESS ==
+          api->backendValidateOpConfig(backend, ops[start_id].GetOpConfig())) {
+    ops.erase(ops.begin() + start_id + 2);
+  } else {
+    QNN_LOG_WARNING(
+        "[G2G] Validation failed. Rolling back to the original graph.");
+    ops[start_id].SwapOutputs(ops[start_id + 1]);
+  }
+  return 1;
 }
 
 }  // namespace qnn

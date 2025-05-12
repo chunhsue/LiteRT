@@ -115,4 +115,11 @@ void OpWrapper::StealOutputs(const OpWrapper& other) {
   this->output_tensors_ = other.output_tensors_;
 }
 
+void OpWrapper::SwapOutputs(const OpWrapper& other) {
+  this->output_tensors_.swap(
+      const_cast<
+          std::vector<std::reference_wrapper<const qnn::TensorWrapper>>&>(
+          other.output_tensors_));
+}
+
 }  // namespace qnn

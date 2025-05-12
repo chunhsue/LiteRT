@@ -10,6 +10,8 @@
 #include "litert/vendors/qualcomm/core/transformation/mha_to_sha.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "QnnCommon.h"  // from @qairt
+#include "QnnInterface.h"  // from @qairt
 
 namespace qnn {
 
@@ -46,21 +48,25 @@ size_t FindPattern(size_t end_id, const std::vector<OpWrapper>& ops,
   return ops.size();
 }
 
-typedef bool (*G2GTransform)(std::vector<OpWrapper>&, size_t, TensorPool&,
-                             size_t);
-void Transform(std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
+typedef size_t (*G2GTransform)(const QNN_INTERFACE_VER_TYPE* api,
+                               Qnn_BackendHandle_t backend,
+                               std::vector<OpWrapper>&, size_t, TensorPool&,
+                               size_t);
+void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
+               std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
                const std::vector<QnnOpCode>& op_codes,
                G2GTransform custom_transform) {
   auto bad_match_table = CreateBadMatchTable(op_codes);
   size_t end_id = op_codes.size() - 1;
   while (end_id < ops.size()) {
     end_id = FindPattern(end_id, ops, op_codes, bad_match_table);
-    if (end_id < ops.size() &&
-        custom_transform(ops, end_id - (op_codes.size() - 1), tensor_pool,
-                         op_codes.size())) {
-      QNN_LOG_INFO("[G2G] Transformation completed successfully.");
+    if (end_id < ops.size()) {
+      end_id +=
+          custom_transform(api, backend, ops, end_id - (op_codes.size() - 1),
+                           tensor_pool, op_codes.size());
+    } else {
+      break;
     }
-    end_id += 1;
   }
 }
 
@@ -78,8 +84,15 @@ enum class G2GConfig {
 }  // namespace
 
 // TODO (jiunkaiy): Add more G2G transformation.
-void GraphToGraphTransform(std::vector<OpWrapper>& ops,
+void GraphToGraphTransform(const QNN_INTERFACE_VER_TYPE* api,
+                           Qnn_BackendHandle_t backend,
+                           std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool) {
+  if (api == nullptr) {
+    QNN_LOG_WARNING(
+        "[G2G] Skip graph validation process due to qnn interface is "
+        "nullptr.");
+  }
   // TODO(jiunkaiy): Move to LiteRtOption.
   const G2GConfig g2g_option = G2GConfig::kMHAOptPrefill;
   if (g2g_option == G2GConfig::kOff) {
@@ -94,13 +107,14 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
         QnnOpCode::kMatMul,
         QnnOpCode::kConvert,
     };
-    Transform(ops, tensor_pool, matmul_convert_decode, FuseMatMulConvertDecode);
+    Transform(api, backend, ops, tensor_pool, matmul_convert_decode,
+              FuseMatMulConvertDecode);
     const std::vector<QnnOpCode> matmul_convert_prefill = {
         QnnOpCode::kMatMul,
         QnnOpCode::kMatMul,
         QnnOpCode::kConvert,
     };
-    Transform(ops, tensor_pool, matmul_convert_prefill,
+    Transform(api, backend, ops, tensor_pool, matmul_convert_prefill,
               FuseMatMulConvertPrefill);
   }
   // MHA Optimization
@@ -121,7 +135,8 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
         QnnOpCode::kElementWiseAdd,
         QnnOpCode::kReshape,
     };
-    Transform(ops, tensor_pool, gemma3_mha_decode, OptimizeMHADecode);
+    Transform(api, backend, ops, tensor_pool, gemma3_mha_decode,
+              OptimizeMHADecode);
   }
   if (g2g_option == G2GConfig::kMHAOptPrefill ||
       g2g_option == G2GConfig::kMHAOpt) {
@@ -145,7 +160,8 @@ void GraphToGraphTransform(std::vector<OpWrapper>& ops,
         QnnOpCode::kTranspose,
         QnnOpCode::kReshape,
     };
-    Transform(ops, tensor_pool, gemma3_mha_prefill, OptimizeMHAPrefill);
+    Transform(api, backend, ops, tensor_pool, gemma3_mha_prefill,
+              OptimizeMHAPrefill);
   }
 }
 }  // namespace qnn
