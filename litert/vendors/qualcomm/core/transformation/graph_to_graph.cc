@@ -20,50 +20,54 @@ namespace {
 constexpr size_t kQnnOpCodeSize = static_cast<size_t>(QnnOpCode::kUnknown);
 
 std::vector<size_t> CreateBadMatchTable(
-    const std::vector<QnnOpCode>& op_codes) {
-  std::vector<size_t> table(kQnnOpCodeSize, op_codes.size());
-  for (size_t i = 0; i < op_codes.size() - 1; ++i) {
-    table[static_cast<size_t>(op_codes[i])] = op_codes.size() - i - 1;
+    const std::vector<QnnOpCode>& pattern_ops) {
+  std::vector<size_t> table(kQnnOpCodeSize, pattern_ops.size());
+  for (size_t i = 0; i < pattern_ops.size() - 1; ++i) {
+    table[static_cast<size_t>(pattern_ops[i])] = pattern_ops.size() - i - 1;
   }
   return table;
 }
 
-size_t FindPattern(size_t end_id, const std::vector<OpWrapper>& ops,
-                   const std::vector<QnnOpCode>& op_codes,
-                   const std::vector<size_t>& bad_match_table) {
-  while (end_id >= (op_codes.size() - 1) && end_id < ops.size()) {
+// Returns the start ID of the matched operator pattern beginning at start_id;
+// returns std::nullopt if no match is found in the remaining graph
+std::optional<size_t> GetPatternStartID(
+    size_t start_id, const std::vector<OpWrapper>& ops,
+    const std::vector<QnnOpCode>& pattern_ops,
+    const std::vector<size_t>& bad_match_table) {
+  size_t end_id = start_id + (pattern_ops.size() - 1);
+  while (end_id >= (pattern_ops.size() - 1) && end_id < ops.size()) {
     bool found_pattern = true;
-    for (size_t i = 0; i < op_codes.size(); ++i) {
-      if (!ops[end_id - i].IsOpType(op_codes[op_codes.size() - i - 1])) {
+    for (size_t i = 0; i < pattern_ops.size(); ++i) {
+      if (!ops[end_id - i].IsOpType(pattern_ops[pattern_ops.size() - i - 1])) {
         found_pattern = false;
         break;
       }
     }
     if (found_pattern) {
-      return end_id;
+      return end_id - (pattern_ops.size() - 1);
     } else {
       end_id += bad_match_table[static_cast<size_t>(ops[end_id].GetOpCode())];
     }
   }
-  return ops.size();
+  return std::nullopt;
 }
 
 typedef size_t (*G2GTransform)(const QNN_INTERFACE_VER_TYPE* api,
                                Qnn_BackendHandle_t backend,
-                               std::vector<OpWrapper>&, size_t, TensorPool&,
-                               size_t);
+                               std::vector<OpWrapper>& ops, size_t start_id,
+                               TensorPool& tensor_pool, size_t pattern_size);
 void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
                std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
-               const std::vector<QnnOpCode>& op_codes,
+               const std::vector<QnnOpCode>& pattern_ops,
                G2GTransform custom_transform) {
-  auto bad_match_table = CreateBadMatchTable(op_codes);
-  size_t end_id = op_codes.size() - 1;
-  while (end_id < ops.size()) {
-    end_id = FindPattern(end_id, ops, op_codes, bad_match_table);
-    if (end_id < ops.size()) {
-      end_id +=
-          custom_transform(api, backend, ops, end_id - (op_codes.size() - 1),
-                           tensor_pool, op_codes.size());
+  auto bad_match_table = CreateBadMatchTable(pattern_ops);
+  size_t start_id = 0;
+  while ((start_id + (pattern_ops.size() - 1)) < ops.size()) {
+    if (auto pattern_start_id =
+            GetPatternStartID(start_id, ops, pattern_ops, bad_match_table);
+        pattern_start_id.has_value()) {
+      start_id += custom_transform(api, backend, ops, pattern_start_id.value(),
+                                   tensor_pool, pattern_ops.size());
     } else {
       break;
     }
@@ -90,7 +94,7 @@ void GraphToGraphTransform(const QNN_INTERFACE_VER_TYPE* api,
                            TensorPool& tensor_pool) {
   if (api == nullptr) {
     QNN_LOG_WARNING(
-        "[G2G] Skip graph validation process due to qnn interface is "
+        "[G2G] Skip graph validation process since qnn interface is"
         "nullptr.");
   }
   // TODO(jiunkaiy): Move to LiteRtOption.
