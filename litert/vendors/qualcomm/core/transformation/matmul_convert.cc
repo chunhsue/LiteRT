@@ -19,8 +19,7 @@ size_t FuseMatMulConvertDecode(const QNN_INTERFACE_VER_TYPE* api,
                                std::vector<OpWrapper>& ops, size_t start_id,
                                TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
-  if (&ops[start_id].GetOutputTensor(0) !=
-      &ops[start_id + 1].GetInputTensor(0)) {
+  if (ops[start_id].GetOutputTensor(0) != ops[start_id + 1].GetInputTensor(0)) {
     return 1;
   }
   // Graph transform
@@ -43,8 +42,7 @@ size_t FuseMatMulConvertPrefill(const QNN_INTERFACE_VER_TYPE* api,
                                 std::vector<OpWrapper>& ops, size_t start_id,
                                 TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
-  if (&ops[start_id].GetOutputTensor(0) !=
-      &ops[start_id + 2].GetInputTensor(0)) {
+  if (ops[start_id].GetOutputTensor(0) != ops[start_id + 2].GetInputTensor(0)) {
     return 1;
   }
   // Graph transform
