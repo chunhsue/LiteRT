@@ -90,7 +90,7 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
 
   if (api == nullptr) {
     QNN_LOG_WARNING(
-        "[G2G] Skip graph validation process since qnn interface is"
+        "[G2G] Skip graph validation process since qnn interface is "
         "nullptr.");
   }
 

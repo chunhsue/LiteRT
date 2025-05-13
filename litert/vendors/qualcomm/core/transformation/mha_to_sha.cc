@@ -30,23 +30,23 @@ namespace {
    ops[start_id + op2].GetInputTensor(in_id))
 
 constexpr size_t kMulIndex = 0;
-constexpr size_t kTransposeIndex = 1;
-constexpr size_t kReshapeIndex = 2;
+constexpr size_t kTransposePrefillIndex = 1;
+constexpr size_t kReshapePrefillIndex = 2;
 constexpr size_t kMatMulK1Index = 1;
 constexpr size_t kMatMulK2Index = 2;
 constexpr size_t kConcatIndex = 3;
-constexpr size_t kReshape2Index = 4;
+constexpr size_t kReshape0Index = 4;
 constexpr size_t kAddIndex = 5;
-constexpr size_t kReshape3Index = 6;
+constexpr size_t kReshape1Index = 6;
 constexpr size_t kSoftmaxIndex = 7;
 constexpr size_t kSlice1Index = 8;
 constexpr size_t kSlice2Index = 9;
 constexpr size_t kMatMulV1Index = 10;
 constexpr size_t kMatMulV2Index = 11;
 constexpr size_t kAdd2Index = 12;
-constexpr size_t kReshape4Index = 13;
+constexpr size_t kReshape2Index = 13;
 constexpr size_t kTranspose2Index = 14;
-constexpr size_t kReshape5Index = 15;
+constexpr size_t kReshape3Index = 15;
 
 std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
@@ -254,25 +254,25 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
                           std::vector<OpWrapper>& ops, size_t start_id,
                           TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
-  if (!(IS_CONNECTED(kMulIndex, 0, kTransposeIndex, 0) &&
-        IS_CONNECTED(kTransposeIndex, 0, kReshapeIndex, 0) &&
-        IS_CONNECTED(kReshapeIndex, 0, kMatMulK1Index + 2, 0) &&
-        IS_CONNECTED(kReshapeIndex, 0, kMatMulK2Index + 2, 0) &&
+  if (!(IS_CONNECTED(kMulIndex, 0, kTransposePrefillIndex, 0) &&
+        IS_CONNECTED(kTransposePrefillIndex, 0, kReshapePrefillIndex, 0) &&
+        IS_CONNECTED(kReshapePrefillIndex, 0, kMatMulK1Index + 2, 0) &&
+        IS_CONNECTED(kReshapePrefillIndex, 0, kMatMulK2Index + 2, 0) &&
         IS_CONNECTED(kMatMulK1Index + 2, 0, kConcatIndex + 2, 0) &&
         IS_CONNECTED(kMatMulK2Index + 2, 0, kConcatIndex + 2, 1) &&
-        IS_CONNECTED(kConcatIndex + 2, 0, kReshape2Index + 2, 0) &&
-        IS_CONNECTED(kReshape2Index + 2, 0, kAddIndex + 2, 0) &&
-        IS_CONNECTED(kAddIndex + 2, 0, kReshape3Index + 2, 0) &&
-        IS_CONNECTED(kReshape3Index + 2, 0, kSoftmaxIndex + 2, 0) &&
+        IS_CONNECTED(kConcatIndex + 2, 0, kReshape0Index + 2, 0) &&
+        IS_CONNECTED(kReshape0Index + 2, 0, kAddIndex + 2, 0) &&
+        IS_CONNECTED(kAddIndex + 2, 0, kReshape1Index + 2, 0) &&
+        IS_CONNECTED(kReshape1Index + 2, 0, kSoftmaxIndex + 2, 0) &&
         IS_CONNECTED(kSoftmaxIndex + 2, 0, kSlice1Index + 2, 0) &&
         IS_CONNECTED(kSoftmaxIndex + 2, 0, kSlice2Index + 2, 0) &&
         IS_CONNECTED(kSlice1Index + 2, 0, kMatMulV1Index + 2, 0) &&
         IS_CONNECTED(kSlice2Index + 2, 0, kMatMulV2Index + 2, 0) &&
         IS_CONNECTED(kMatMulV1Index + 2, 0, kAdd2Index + 2, 0) &&
         IS_CONNECTED(kMatMulV2Index + 2, 0, kAdd2Index + 2, 1) &&
-        IS_CONNECTED(kAdd2Index + 2, 0, kReshape4Index + 2, 0) &&
-        IS_CONNECTED(kReshape4Index + 2, 0, kTranspose2Index + 2, 0) &&
-        IS_CONNECTED(kTranspose2Index + 2, 0, kReshape5Index + 2, 0))) {
+        IS_CONNECTED(kAdd2Index + 2, 0, kReshape2Index + 2, 0) &&
+        IS_CONNECTED(kReshape2Index + 2, 0, kTranspose2Index + 2, 0) &&
+        IS_CONNECTED(kTranspose2Index + 2, 0, kReshape3Index + 2, 0))) {
     return 1;
   }
   // Graph transform
@@ -286,14 +286,15 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
 
   // Transpose
   auto transpose_output_dims =
-      ops[start_id + kTransposeIndex].GetOutputTensor(0).GetDims();
+      ops[start_id + kTransposePrefillIndex].GetOutputTensor(0).GetDims();
   auto& transpose_output =
       tensor_pool.CloneNativeTensorFrom(pattern_input, transpose_output_dims);
   auto transpose = BuildTransposeOp(
       tensor_pool,
       {const_cast<::qnn::TensorWrapper&>(pattern_input),
-       const_cast<::qnn::TensorWrapper&>(
-           ops[start_id + kTransposeIndex].GetTensorPararm(0).GetTensor())},
+       const_cast<::qnn::TensorWrapper&>(ops[start_id + kTransposePrefillIndex]
+                                             .GetTensorPararm(0)
+                                             .GetTensor())},
       {transpose_output});
   std::move(transpose.begin(), transpose.end(), std::back_inserter(new_ops));
 
@@ -344,20 +345,21 @@ size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
                          std::vector<OpWrapper>& ops, size_t start_id,
                          TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
-  if (!(IS_CONNECTED(kMulIndex, 0, kTransposeIndex, 0) &&
+  if (!(IS_CONNECTED(kMulIndex, 0, kMatMulK1Index, 0) &&
+        IS_CONNECTED(kMulIndex, 0, kMatMulK2Index, 0) &&
         IS_CONNECTED(kMatMulK1Index, 0, kConcatIndex, 0) &&
         IS_CONNECTED(kMatMulK2Index, 0, kConcatIndex, 1) &&
-        IS_CONNECTED(kConcatIndex, 0, kReshape2Index, 0) &&
-        IS_CONNECTED(kReshape2Index, 0, kAddIndex, 0) &&
-        IS_CONNECTED(kAddIndex, 0, kReshape3Index, 0) &&
-        IS_CONNECTED(kReshape3Index, 0, kSoftmaxIndex, 0) &&
+        IS_CONNECTED(kConcatIndex, 0, kReshape0Index, 0) &&
+        IS_CONNECTED(kReshape0Index, 0, kAddIndex, 0) &&
+        IS_CONNECTED(kAddIndex, 0, kReshape1Index, 0) &&
+        IS_CONNECTED(kReshape1Index, 0, kSoftmaxIndex, 0) &&
         IS_CONNECTED(kSoftmaxIndex, 0, kSlice1Index, 0) &&
         IS_CONNECTED(kSoftmaxIndex, 0, kSlice2Index, 0) &&
         IS_CONNECTED(kSlice1Index, 0, kMatMulV1Index, 0) &&
         IS_CONNECTED(kSlice2Index, 0, kMatMulV2Index, 0) &&
         IS_CONNECTED(kMatMulV1Index, 0, kAdd2Index, 0) &&
         IS_CONNECTED(kMatMulV2Index, 0, kAdd2Index, 1) &&
-        IS_CONNECTED(kAdd2Index, 0, kReshape4Index, 0))) {
+        IS_CONNECTED(kAdd2Index, 0, kReshape2Index, 0))) {
     return 1;
   }
   // Graph transform

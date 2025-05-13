@@ -466,13 +466,13 @@ TEST(MHAConvertTest, Gemma3Decode) {
   //                 \     /
   //                  Concat
   //                    |
-  //                 Reshape1
+  //                 Reshape0
   //                    |
   //               mask |
   //                  \ |
   //                   Add0
   //                    |
-  //                 Reshape2
+  //                 Reshape1
   //                    |
   //                 Softmax
   //                  /   \
@@ -487,7 +487,7 @@ TEST(MHAConvertTest, Gemma3Decode) {
   //                 \     /
   //                   Add1
   //                    |
-  //                 Reshape3
+  //                 Reshape2
   //                    |
   //                   Out0
   //
@@ -566,27 +566,27 @@ TEST(MHAConvertTest, Gemma3Decode) {
   auto concat = BuildConcatenationOp(
       tensor_pool, {matmulk0_output, matmulk1_output}, {concat_output}, 3);
   std::move(concat.begin(), concat.end(), std::back_inserter(op_wrappers));
-  // Reshape1
-  auto& reshape1_output =
+  // Reshape0
+  auto& reshape0_output =
       tensor_pool.CloneNativeTensorFrom(concat_output, {1, 4, 1, 1281});
-  auto reshape1 =
-      BuildReshapeOp(tensor_pool, {concat_output}, {reshape1_output});
-  std::move(reshape1.begin(), reshape1.end(), std::back_inserter(op_wrappers));
+  auto reshape0 =
+      BuildReshapeOp(tensor_pool, {concat_output}, {reshape0_output});
+  std::move(reshape0.begin(), reshape0.end(), std::back_inserter(op_wrappers));
   // Add
-  auto& add0_output = tensor_pool.CloneNativeTensorFrom(reshape1_output);
-  auto& mask = tensor_pool.CloneNativeTensorFrom(reshape1_output);
-  auto add0 = BuildElementwiseAddOp(tensor_pool, {reshape1_output, mask},
+  auto& add0_output = tensor_pool.CloneNativeTensorFrom(reshape0_output);
+  auto& mask = tensor_pool.CloneNativeTensorFrom(reshape0_output);
+  auto add0 = BuildElementwiseAddOp(tensor_pool, {reshape0_output, mask},
                                     {add0_output});
   std::move(add0.begin(), add0.end(), std::back_inserter(op_wrappers));
-  // Reshape2
-  auto& reshape2_output =
+  // Reshape1
+  auto& reshape1_output =
       tensor_pool.CloneNativeTensorFrom(add0_output, {1, 1, 4, 1281});
-  auto reshape2 = BuildReshapeOp(tensor_pool, {add0_output}, {reshape2_output});
-  std::move(reshape2.begin(), reshape2.end(), std::back_inserter(op_wrappers));
+  auto reshape1 = BuildReshapeOp(tensor_pool, {add0_output}, {reshape1_output});
+  std::move(reshape1.begin(), reshape1.end(), std::back_inserter(op_wrappers));
   // Softmax
-  auto& softmax_output = tensor_pool.CloneNativeTensorFrom(reshape2_output);
+  auto& softmax_output = tensor_pool.CloneNativeTensorFrom(reshape1_output);
   auto softmax =
-      BuildSoftmaxOp(tensor_pool, {reshape2_output}, {softmax_output}, 1.0f);
+      BuildSoftmaxOp(tensor_pool, {reshape1_output}, {softmax_output}, 1.0f);
   std::move(softmax.begin(), softmax.end(), std::back_inserter(op_wrappers));
   // Slice0
   const std::array<int32_t, 4> slice0_begin_data{0, 0, 0, 0};
@@ -600,7 +600,7 @@ TEST(MHAConvertTest, Gemma3Decode) {
       slice0_size_data.size() * sizeof(slice0_size_data[0]),
       slice0_size_data.data());
   auto& slice0_output =
-      tensor_pool.CloneNativeTensorFrom(reshape2_output, {1, 1, 4, 1280});
+      tensor_pool.CloneNativeTensorFrom(reshape1_output, {1, 1, 4, 1280});
   auto slice0 =
       BuildSliceOp(tensor_pool, {softmax_output, slice0_begin, slice0_size},
                    {slice0_output});
@@ -618,7 +618,7 @@ TEST(MHAConvertTest, Gemma3Decode) {
       slice1_size_data.size() * sizeof(slice1_size_data[0]),
       slice1_size_data.data());
   auto& slice1_output =
-      tensor_pool.CloneNativeTensorFrom(reshape2_output, {1, 1, 4, 256});
+      tensor_pool.CloneNativeTensorFrom(reshape1_output, {1, 1, 4, 256});
   auto slice1 =
       BuildSliceOp(tensor_pool, {softmax_output, slice1_begin, slice1_size},
                    {slice1_output});
@@ -644,11 +644,11 @@ TEST(MHAConvertTest, Gemma3Decode) {
   auto add1 = BuildElementwiseAddOp(
       tensor_pool, {matmulv0_output, matmulv1_output}, {add1_output});
   std::move(add1.begin(), add1.end(), std::back_inserter(op_wrappers));
-  // Reshape3
-  auto& reshape3_output =
+  // Reshape2
+  auto& reshape2_output =
       tensor_pool.CloneNativeTensorFrom(add1_output, {1, 1, 1024});
-  auto reshape3 = BuildReshapeOp(tensor_pool, {add1_output}, {reshape3_output});
-  std::move(reshape3.begin(), reshape3.end(), std::back_inserter(op_wrappers));
+  auto reshape2 = BuildReshapeOp(tensor_pool, {add1_output}, {reshape2_output});
+  std::move(reshape2.begin(), reshape2.end(), std::back_inserter(op_wrappers));
 
   ASSERT_EQ(op_wrappers.size(), 14);
 
