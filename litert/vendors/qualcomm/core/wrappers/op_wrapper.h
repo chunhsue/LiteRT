@@ -42,8 +42,6 @@ class OpWrapper final {
 
   Qnn_OpConfig_t GetOpConfig();
 
-  bool IsOpType(QnnOpCode qnn_op_code) const;
-
   QnnOpCode GetOpCode() const;
 
   bool IsOpCode(QnnOpCode op_code) const;

@@ -89,10 +89,6 @@ Qnn_OpConfig_t OpWrapper::GetOpConfig() {
   return qnn_op;
 }
 
-bool OpWrapper::IsOpType(QnnOpCode op_code) const {
-  return op_code_ == op_code;
-}
-
 QnnOpCode OpWrapper::GetOpCode() const { return op_code_; }
 
 bool OpWrapper::IsOpCode(QnnOpCode op_code) const {

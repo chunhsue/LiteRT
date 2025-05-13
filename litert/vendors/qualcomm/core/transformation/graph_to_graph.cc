@@ -38,7 +38,7 @@ std::optional<size_t> GetPatternStartID(
   while (end_id >= (pattern_ops.size() - 1) && end_id < ops.size()) {
     bool found_pattern = true;
     for (size_t i = 0; i < pattern_ops.size(); ++i) {
-      if (!ops[end_id - i].IsOpType(pattern_ops[pattern_ops.size() - i - 1])) {
+      if (!ops[end_id - i].IsOpCode(pattern_ops[pattern_ops.size() - i - 1])) {
         found_pattern = false;
         break;
       }
