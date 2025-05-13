@@ -30,46 +30,50 @@ std::vector<size_t> CreateBadMatchTable(
   return table;
 }
 
-// Returns the start ID of the matched operator pattern beginning at start_id;
-// returns std::nullopt if no match is found in the remaining graph
-std::optional<size_t> GetPatternStartID(
-    size_t start_id, const std::vector<OpWrapper>& ops,
-    const std::vector<QnnOpCode>& pattern_ops,
-    const std::vector<size_t>& bad_match_table) {
-  size_t end_id = start_id + (pattern_ops.size() - 1);
-  while (end_id >= (pattern_ops.size() - 1) && end_id < ops.size()) {
+// Returns the start index of the matched operator pattern beginning at
+// start_index; returns -1 if no match is found in the graph.
+int GetPatternStartIndex(size_t start_index, const std::vector<OpWrapper>& ops,
+                         const std::vector<QnnOpCode>& pattern_ops,
+                         const std::vector<size_t>& bad_match_table) {
+  size_t end_index = start_index + (pattern_ops.size() - 1);
+  while (end_index < ops.size()) {
     bool found_pattern = true;
     for (size_t i = 0; i < pattern_ops.size(); ++i) {
-      if (!ops[end_id - i].IsOpCode(pattern_ops[pattern_ops.size() - i - 1])) {
+      if (!ops[end_index - i].IsOpCode(
+              pattern_ops[pattern_ops.size() - i - 1])) {
         found_pattern = false;
         break;
       }
     }
     if (found_pattern) {
-      return end_id - (pattern_ops.size() - 1);
+      return end_index - (pattern_ops.size() - 1);
     } else {
-      end_id += bad_match_table[static_cast<size_t>(ops[end_id].GetOpCode())];
+      end_index +=
+          bad_match_table[static_cast<size_t>(ops[end_index].GetOpCode())];
     }
   }
-  return std::nullopt;
+  return -1;
 }
 
+// Returns the number of indices to skip for the next pattern match.
+// This function attempts to transform a specific pattern into another one
+// and returns the size of the skippable indices for the next index check.
 typedef size_t (*G2GTransform)(const QNN_INTERFACE_VER_TYPE* api,
                                Qnn_BackendHandle_t backend,
-                               std::vector<OpWrapper>& ops, size_t start_id,
+                               std::vector<OpWrapper>& ops, size_t start_index,
                                TensorPool& tensor_pool, size_t pattern_size);
 void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
                std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
                const std::vector<QnnOpCode>& pattern_ops,
                G2GTransform custom_transform) {
   auto bad_match_table = CreateBadMatchTable(pattern_ops);
-  size_t start_id = 0;
-  while ((start_id + (pattern_ops.size() - 1)) < ops.size()) {
-    if (auto pattern_start_id =
-            GetPatternStartID(start_id, ops, pattern_ops, bad_match_table);
-        pattern_start_id.has_value()) {
-      start_id += custom_transform(api, backend, ops, pattern_start_id.value(),
-                                   tensor_pool, pattern_ops.size());
+  size_t start_index = 0;
+  while ((start_index + (pattern_ops.size() - 1)) < ops.size()) {
+    if (auto pattern_start_index = GetPatternStartIndex(
+            start_index, ops, pattern_ops, bad_match_table);
+        pattern_start_index != -1) {
+      start_index += custom_transform(api, backend, ops, pattern_start_index,
+                                      tensor_pool, pattern_ops.size());
     } else {
       break;
     }
