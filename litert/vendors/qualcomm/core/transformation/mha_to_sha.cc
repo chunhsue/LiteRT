@@ -7,13 +7,9 @@
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/concatenation_op_builder.h"
-#include "litert/vendors/qualcomm/core/builders/elementwise_op_builder.h"
-#include "litert/vendors/qualcomm/core/builders/matmul_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/reshape_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/slice_op_builder.h"
-#include "litert/vendors/qualcomm/core/builders/softmax_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/split_op_builder.h"
-#include "litert/vendors/qualcomm/core/builders/transpose_op_builder.h"
 #include "litert/vendors/qualcomm/core/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
@@ -48,6 +44,15 @@ constexpr size_t kReshape2Index = 13;
 constexpr size_t kTranspose2Index = 14;
 constexpr size_t kReshape3Index = 15;
 
+void CloneOpWithIO(
+    std::vector<OpWrapper>& new_ops, const OpWrapper& source_op,
+    const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,
+    const std::vector<std::optional<qnn::TensorWrapperRef>>& outputs) {
+  OpWrapper ret = source_op;
+  ret.UpdateTensors(inputs, outputs);
+  new_ops.emplace_back(ret);
+}
+
 std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
                                       const qnn::TensorWrapper& mha_input,
@@ -56,30 +61,19 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t num_heads, int32_t seq_len) {
   std::vector<OpWrapper> new_ops;
 
-  const auto& mul_const = first_mul.GetInputTensor(1);
   const auto& mul_output_quant_param =
       first_mul.GetOutputTensor(0).GetQuantParams();
-
-  const auto& matmulk_cache = ops[start_id + kMatMulK1Index].GetInputTensor(1);
   const auto& matmulk_cache_output =
       ops[start_id + kMatMulK1Index].GetOutputTensor(0);
-  const auto& matmulk_slice = ops[start_id + kMatMulK2Index].GetInputTensor(1);
   const auto& matmulk_slice_output =
       ops[start_id + kMatMulK2Index].GetOutputTensor(0);
-
   const auto& concat_mha_output =
       ops[start_id + kConcatIndex].GetOutputTensor(0);
-
-  const auto& add_mha_mask = ops[start_id + kAddIndex].GetInputTensor(1);
   const auto& add_mha_output = ops[start_id + kAddIndex].GetOutputTensor(0);
-
   const auto& softmax_mha_output =
       ops[start_id + kSoftmaxIndex].GetOutputTensor(0);
-
-  const auto& matmulv_cache = ops[start_id + kMatMulV1Index].GetInputTensor(1);
   const auto& matmulv_cache_output =
       ops[start_id + kMatMulV1Index].GetOutputTensor(0);
-  const auto& matmulv_slice = ops[start_id + kMatMulV2Index].GetInputTensor(1);
   const auto& matmulv_slice_output =
       ops[start_id + kMatMulV2Index].GetOutputTensor(0);
 
@@ -127,59 +121,45 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
       head_inputs, num_heads);
   std::move(split.begin(), split.end(), std::back_inserter(new_ops));
 
-  std::array<::qnn::TensorWrapper*, 4> concat_after_mha;
-
+  std::vector<::qnn::TensorWrapperRef> concat_after_mha;
+  concat_after_mha.reserve(num_heads);
   for (int i = 0; i < num_heads; ++i) {
     // Mul
     auto& mul_output = tensor_pool.CloneNativeTensorFrom(
         head_inputs[i].get(), mul_output_quant_param);
-    auto mul = BuildElementwiseMulOp(
-        tensor_pool,
-        {head_inputs[i].get(), const_cast<::qnn::TensorWrapper&>(mul_const)},
-        {mul_output});
-    std::move(mul.begin(), mul.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, first_mul, {head_inputs[i].get(), std::nullopt},
+                  {mul_output});
     // MatMul 1
     std::vector<uint32_t> matmul1_output_dim = matmulk_cache_output.GetDims();
     matmul1_output_dim[2] = matmul1_output_dim[2] / num_heads;
     auto& matmul1_output = tensor_pool.CloneNativeTensorFrom(
         matmulk_cache_output, matmul1_output_dim);
-    auto matmul1 = BuildMatmulOp(
-        tensor_pool,
-        {mul_output, const_cast<::qnn::TensorWrapper&>(matmulk_cache)},
-        {matmul1_output}, false, true);
-    std::move(matmul1.begin(), matmul1.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kMatMulK1Index],
+                  {mul_output, std::nullopt}, {matmul1_output});
     // MatMul 2
     std::vector<uint32_t> matmul2_output_dim = matmulk_slice_output.GetDims();
     matmul2_output_dim[2] = matmul2_output_dim[2] / num_heads;
     auto& matmul2_output = tensor_pool.CloneNativeTensorFrom(
         matmulk_slice_output, matmul2_output_dim);
-    auto matmul2 = BuildMatmulOp(
-        tensor_pool,
-        {mul_output, const_cast<::qnn::TensorWrapper&>(matmulk_slice)},
-        {matmul2_output}, false, true);
-    std::move(matmul2.begin(), matmul2.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kMatMulK2Index],
+                  {mul_output, std::nullopt}, {matmul2_output});
     // Concat
     std::vector<uint32_t> concat_output_dim = matmul1_output.GetDims();
     concat_output_dim[3] += matmul2_output.GetDim(3);
     auto& concat_output =
         tensor_pool.CloneNativeTensorFrom(concat_mha_output, concat_output_dim);
-    auto concat = BuildConcatenationOp(
-        tensor_pool, {matmul1_output, matmul2_output}, {concat_output}, 3);
-    std::move(concat.begin(), concat.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kConcatIndex],
+                  {matmul1_output, matmul2_output}, {concat_output});
     // Add
     auto& add_output = tensor_pool.CloneNativeTensorFrom(
         add_mha_output, concat_output.GetDims());
-    auto add = BuildElementwiseAddOp(
-        tensor_pool,
-        {concat_output, const_cast<::qnn::TensorWrapper&>(add_mha_mask)},
-        {add_output});
-    std::move(add.begin(), add.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kAddIndex],
+                  {concat_output, std::nullopt}, {add_output});
     // Softmax
     auto& softmax_output = tensor_pool.CloneNativeTensorFrom(
         softmax_mha_output, add_output.GetDims());
-    auto softmax =
-        BuildSoftmaxOp(tensor_pool, {add_output}, {softmax_output}, 1.0f);
-    std::move(softmax.begin(), softmax.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kSoftmaxIndex], {add_output},
+                  {softmax_output});
     // Slice 1
     const std::vector<uint32_t> slice1_output_dim{
         1, 1, static_cast<uint32_t>(seq_len), 1280};
@@ -194,11 +174,8 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
     matmul1_v_output_dim[2] = matmul1_v_output_dim[2] / num_heads;
     auto& matmul1_v_output = tensor_pool.CloneNativeTensorFrom(
         matmulv_cache_output, matmul1_v_output_dim);
-    auto matmul1_v = BuildMatmulOp(
-        tensor_pool,
-        {slice1_output, const_cast<::qnn::TensorWrapper&>(matmulv_cache)},
-        {matmul1_v_output}, false, true);
-    std::move(matmul1_v.begin(), matmul1_v.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kMatMulV1Index],
+                  {slice1_output, std::nullopt}, {matmul1_v_output});
     // Slice 2
     auto& slice2_output = tensor_pool.CloneNativeTensorFrom(
         softmax_output,
@@ -212,30 +189,22 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
     matmul2_v_output_dim[2] = matmul2_v_output_dim[2] / num_heads;
     auto& matmul2_v_output = tensor_pool.CloneNativeTensorFrom(
         matmulv_slice_output, matmul2_v_output_dim);
-    auto matmul2_v = BuildMatmulOp(
-        tensor_pool,
-        {slice2_output, const_cast<::qnn::TensorWrapper&>(matmulv_slice)},
-        {matmul2_v_output}, false, true);
-    std::move(matmul2_v.begin(), matmul2_v.end(), std::back_inserter(new_ops));
+    CloneOpWithIO(new_ops, ops[start_id + kMatMulV2Index],
+                  {slice2_output, std::nullopt}, {matmul2_v_output});
     // Add
     auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
         mha_output, matmul1_v_output.GetDims());
-    concat_after_mha[i] = &add_final_output;
-    auto add_final = BuildElementwiseAddOp(
-        tensor_pool, {matmul1_v_output, matmul2_v_output}, {add_final_output});
-    std::move(add_final.begin(), add_final.end(), std::back_inserter(new_ops));
+    concat_after_mha.emplace_back(add_final_output);
+    CloneOpWithIO(new_ops, ops[start_id + kAdd2Index],
+                  {matmul1_v_output, matmul2_v_output}, {add_final_output});
   }
   // Concat
-  std::vector<::qnn::TensorWrapperRef> concat_final_inputs;
-  for (int i = 0; i < num_heads; ++i) {
-    concat_final_inputs.emplace_back(*(concat_after_mha[i]));
-  }
   auto concat_dims = mha_output.GetDims();
   concat_dims.insert(concat_dims.begin(), 1);
   auto& concat_output =
       tensor_pool.CloneNativeTensorFrom(mha_output, concat_dims);
-  auto concat_final = BuildConcatenationOp(tensor_pool, concat_final_inputs,
-                                           {concat_output}, 3);
+  auto concat_final =
+      BuildConcatenationOp(tensor_pool, concat_after_mha, {concat_output}, 3);
   std::move(concat_final.begin(), concat_final.end(),
             std::back_inserter(new_ops));
   // Reshape
@@ -243,7 +212,6 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
       BuildReshapeOp(tensor_pool, {concat_output},
                      {const_cast<::qnn::TensorWrapper&>(mha_output)});
   std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
-
   return new_ops;
 }
 
@@ -289,23 +257,17 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
       ops[start_id + kTransposePrefillIndex].GetOutputTensor(0).GetDims();
   auto& transpose_output =
       tensor_pool.CloneNativeTensorFrom(pattern_input, transpose_output_dims);
-  auto transpose = BuildTransposeOp(
-      tensor_pool,
-      {const_cast<::qnn::TensorWrapper&>(pattern_input),
-       const_cast<::qnn::TensorWrapper&>(ops[start_id + kTransposePrefillIndex]
-                                             .GetTensorPararm(0)
-                                             .GetTensor())},
-      {transpose_output});
-  std::move(transpose.begin(), transpose.end(), std::back_inserter(new_ops));
+  CloneOpWithIO(new_ops, ops[start_id + kTransposePrefillIndex],
+                {const_cast<::qnn::TensorWrapper&>(pattern_input)},
+                {transpose_output});
 
   // Reshape
   auto& reshape_output = tensor_pool.CloneNativeTensorFrom(
       pattern_input, {transpose_output_dims[0], 1,
                       transpose_output_dims[1] * transpose_output_dims[2],
                       transpose_output_dims[3]});
-  auto reshape =
-      BuildReshapeOp(tensor_pool, {transpose_output}, {reshape_output});
-  std::move(reshape.begin(), reshape.end(), std::back_inserter(new_ops));
+  CloneOpWithIO(new_ops, ops[start_id + kReshapePrefillIndex],
+                {transpose_output}, {reshape_output});
 
   // Process MHA to SHA transformation.
   const int num_heads = pattern_input.GetDim(2);

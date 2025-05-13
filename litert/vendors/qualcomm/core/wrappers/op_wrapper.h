@@ -56,6 +56,10 @@ class OpWrapper final {
 
   void SwapOutputs(const OpWrapper& other);
 
+  void UpdateTensors(
+      const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,
+      const std::vector<std::optional<qnn::TensorWrapperRef>>& outputs);
+
  private:
   const char* type_name_{nullptr};
   std::string name_{};  // human readable name
