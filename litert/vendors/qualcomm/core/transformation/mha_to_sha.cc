@@ -22,15 +22,31 @@
 
 namespace qnn {
 namespace {
+
+// Returns a boolean indicating whether the output tensor of op1 at out_id is
+// connected to the input tensor of op2 at in_id.
+#define IS_CONNECTED(op1, out_id, op2, in_id)     \
+  (ops[start_id + op1].GetOutputTensor(out_id) == \
+   ops[start_id + op2].GetInputTensor(in_id))
+
 constexpr size_t kMulIndex = 0;
 constexpr size_t kTransposeIndex = 1;
+constexpr size_t kReshapeIndex = 2;
 constexpr size_t kMatMulK1Index = 1;
 constexpr size_t kMatMulK2Index = 2;
 constexpr size_t kConcatIndex = 3;
+constexpr size_t kReshape2Index = 4;
 constexpr size_t kAddIndex = 5;
+constexpr size_t kReshape3Index = 6;
 constexpr size_t kSoftmaxIndex = 7;
+constexpr size_t kSlice1Index = 8;
+constexpr size_t kSlice2Index = 9;
 constexpr size_t kMatMulV1Index = 10;
 constexpr size_t kMatMulV2Index = 11;
+constexpr size_t kAdd2Index = 12;
+constexpr size_t kReshape4Index = 13;
+constexpr size_t kTranspose2Index = 14;
+constexpr size_t kReshape5Index = 15;
 
 std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
@@ -237,7 +253,28 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
                           Qnn_BackendHandle_t backend,
                           std::vector<OpWrapper>& ops, size_t start_id,
                           TensorPool& tensor_pool, size_t pattern_size) {
-  // TODO(jiunkaiy): Add connection check.
+  // Connection check
+  if (!(IS_CONNECTED(kMulIndex, 0, kTransposeIndex, 0) &&
+        IS_CONNECTED(kTransposeIndex, 0, kReshapeIndex, 0) &&
+        IS_CONNECTED(kReshapeIndex, 0, kMatMulK1Index + 2, 0) &&
+        IS_CONNECTED(kReshapeIndex, 0, kMatMulK2Index + 2, 0) &&
+        IS_CONNECTED(kMatMulK1Index + 2, 0, kConcatIndex + 2, 0) &&
+        IS_CONNECTED(kMatMulK2Index + 2, 0, kConcatIndex + 2, 1) &&
+        IS_CONNECTED(kConcatIndex + 2, 0, kReshape2Index + 2, 0) &&
+        IS_CONNECTED(kReshape2Index + 2, 0, kAddIndex + 2, 0) &&
+        IS_CONNECTED(kAddIndex + 2, 0, kReshape3Index + 2, 0) &&
+        IS_CONNECTED(kReshape3Index + 2, 0, kSoftmaxIndex + 2, 0) &&
+        IS_CONNECTED(kSoftmaxIndex + 2, 0, kSlice1Index + 2, 0) &&
+        IS_CONNECTED(kSoftmaxIndex + 2, 0, kSlice2Index + 2, 0) &&
+        IS_CONNECTED(kSlice1Index + 2, 0, kMatMulV1Index + 2, 0) &&
+        IS_CONNECTED(kSlice2Index + 2, 0, kMatMulV2Index + 2, 0) &&
+        IS_CONNECTED(kMatMulV1Index + 2, 0, kAdd2Index + 2, 0) &&
+        IS_CONNECTED(kMatMulV2Index + 2, 0, kAdd2Index + 2, 1) &&
+        IS_CONNECTED(kAdd2Index + 2, 0, kReshape4Index + 2, 0) &&
+        IS_CONNECTED(kReshape4Index + 2, 0, kTranspose2Index + 2, 0) &&
+        IS_CONNECTED(kTranspose2Index + 2, 0, kReshape5Index + 2, 0))) {
+    return 1;
+  }
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
   auto back_iter = tensor_pool.GetBackIter();
@@ -306,7 +343,23 @@ size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
                          Qnn_BackendHandle_t backend,
                          std::vector<OpWrapper>& ops, size_t start_id,
                          TensorPool& tensor_pool, size_t pattern_size) {
-  // TODO(jiunkaiy): Add connection check.
+  // Connection check
+  if (!(IS_CONNECTED(kMulIndex, 0, kTransposeIndex, 0) &&
+        IS_CONNECTED(kMatMulK1Index, 0, kConcatIndex, 0) &&
+        IS_CONNECTED(kMatMulK2Index, 0, kConcatIndex, 1) &&
+        IS_CONNECTED(kConcatIndex, 0, kReshape2Index, 0) &&
+        IS_CONNECTED(kReshape2Index, 0, kAddIndex, 0) &&
+        IS_CONNECTED(kAddIndex, 0, kReshape3Index, 0) &&
+        IS_CONNECTED(kReshape3Index, 0, kSoftmaxIndex, 0) &&
+        IS_CONNECTED(kSoftmaxIndex, 0, kSlice1Index, 0) &&
+        IS_CONNECTED(kSoftmaxIndex, 0, kSlice2Index, 0) &&
+        IS_CONNECTED(kSlice1Index, 0, kMatMulV1Index, 0) &&
+        IS_CONNECTED(kSlice2Index, 0, kMatMulV2Index, 0) &&
+        IS_CONNECTED(kMatMulV1Index, 0, kAdd2Index, 0) &&
+        IS_CONNECTED(kMatMulV2Index, 0, kAdd2Index, 1) &&
+        IS_CONNECTED(kAdd2Index, 0, kReshape4Index, 0))) {
+    return 1;
+  }
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
   auto back_iter = tensor_pool.GetBackIter();
