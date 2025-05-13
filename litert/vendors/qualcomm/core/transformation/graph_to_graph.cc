@@ -1,6 +1,8 @@
 // Copyright (c) Qualcomm Innovation Center, Inc. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "litert/vendors/qualcomm/core/transformation/graph_to_graph.h"
+
 #include <array>
 #include <vector>
 
@@ -74,33 +76,22 @@ void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
   }
 }
 
-enum class G2GConfig {
-  // Disable G2G.
-  kOff,
-  // Enable G2G MatMul-convert fusion.
-  kMatMulConvert,
-  // Enable G2G MHA optimization for prefill only.
-  kMHAOptPrefill,
-  // Enable G2G MHA optimization for both decode and prefill.
-  kMHAOpt,
-};
-
 }  // namespace
 
 // TODO (jiunkaiy): Add more G2G transformation.
-void GraphToGraphTransform(const QNN_INTERFACE_VER_TYPE* api,
+void GraphToGraphTransform(const G2GConfig g2g_option,
+                           const QNN_INTERFACE_VER_TYPE* api,
                            Qnn_BackendHandle_t backend,
                            std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool) {
+  if (g2g_option == G2GConfig::kOff) {
+    return;
+  }
+
   if (api == nullptr) {
     QNN_LOG_WARNING(
         "[G2G] Skip graph validation process since qnn interface is"
         "nullptr.");
-  }
-  // TODO(jiunkaiy): Move to LiteRtOption.
-  const G2GConfig g2g_option = G2GConfig::kMHAOptPrefill;
-  if (g2g_option == G2GConfig::kOff) {
-    return;
   }
 
   // MatMul-convert Fusion

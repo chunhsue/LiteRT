@@ -11,7 +11,20 @@
 #include "QnnInterface.h"  // from @qairt
 
 namespace qnn {
-void GraphToGraphTransform(const QNN_INTERFACE_VER_TYPE* api,
+
+enum class G2GConfig {
+  // Disable G2G.
+  kOff,
+  // Enable G2G MatMul-convert fusion.
+  kMatMulConvert,
+  // Enable G2G MHA optimization for prefill only.
+  kMHAOptPrefill,
+  // Enable G2G MHA optimization for both decode and prefill.
+  kMHAOpt,
+};
+
+void GraphToGraphTransform(const G2GConfig g2g_option,
+                           const QNN_INTERFACE_VER_TYPE* api,
                            Qnn_BackendHandle_t backend,
                            std::vector<OpWrapper>& ops,
                            TensorPool& tensor_pool);
