@@ -9,13 +9,13 @@
 
 #include "litert/vendors/qualcomm/core/builders/concatenation_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/reshape_op_builder.h"
-#include "litert/vendors/qualcomm/core/builders/slice_op_builder.h"
 #include "litert/vendors/qualcomm/core/builders/split_op_builder.h"
 #include "litert/vendors/qualcomm/core/op_code.h"
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 #include "QnnInterface.h"  // from @qairt
+#include "QnnOpDef.h"  // from @qairt
 
 namespace qnn {
 namespace {
@@ -54,54 +54,134 @@ void CloneOpWithIO(
   new_ops.emplace_back(ret);
 }
 
+TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
+                              std::vector<OpWrapper>& new_ops,
+                              TensorPool& tensor_pool,
+                              qnn::TensorWrapper& sha_input,
+                              const ::qnn::OpWrapper& first_mul,
+                              size_t num_heads) {
+  // Mul
+  auto& mul_output = tensor_pool.CloneNativeTensorFrom(
+      first_mul.GetOutputTensor(0), sha_input.GetDims());
+  CloneOpWithIO(new_ops, first_mul, {sha_input, std::nullopt}, {mul_output});
+  // MatMul 1
+  const auto& matmulk_cache_output =
+      ops[start_id + kMatMulK1Index].GetOutputTensor(0);
+  std::vector<uint32_t> matmul1_output_dim = matmulk_cache_output.GetDims();
+  matmul1_output_dim[2] = matmul1_output_dim[2] / num_heads;
+  auto& matmul1_output = tensor_pool.CloneNativeTensorFrom(matmulk_cache_output,
+                                                           matmul1_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kMatMulK1Index],
+                {mul_output, std::nullopt}, {matmul1_output});
+  // MatMul 2
+  const auto& matmulk_slice_output =
+      ops[start_id + kMatMulK2Index].GetOutputTensor(0);
+  std::vector<uint32_t> matmul2_output_dim = matmulk_slice_output.GetDims();
+  matmul2_output_dim[2] = matmul2_output_dim[2] / num_heads;
+  auto& matmul2_output = tensor_pool.CloneNativeTensorFrom(matmulk_slice_output,
+                                                           matmul2_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kMatMulK2Index],
+                {mul_output, std::nullopt}, {matmul2_output});
+  // Concat
+  std::vector<uint32_t> concat_output_dim = matmul1_output.GetDims();
+  concat_output_dim[3] += matmul2_output.GetDim(3);
+  auto& concat_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kConcatIndex].GetOutputTensor(0), concat_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kConcatIndex],
+                {matmul1_output, matmul2_output}, {concat_output});
+  // Add
+  auto& add_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kAddIndex].GetOutputTensor(0), concat_output.GetDims());
+  CloneOpWithIO(new_ops, ops[start_id + kAddIndex],
+                {concat_output, std::nullopt}, {add_output});
+  // Softmax
+  auto& softmax_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kSoftmaxIndex].GetOutputTensor(0), add_output.GetDims());
+  CloneOpWithIO(new_ops, ops[start_id + kSoftmaxIndex], {add_output},
+                {softmax_output});
+  // Slice 1
+  // Create StridedSlice param ranges.
+  auto mha_slice1_param =
+      ops[start_id + kSlice1Index].GetTensorPararm(0).GetTensor();
+  auto mha_slice1_param_data = mha_slice1_param.GetStaticTensorData<int32_t>();
+  std::vector<int32_t> slice1_param(mha_slice1_param_data.value().begin(),
+                                    mha_slice1_param_data.value().end());
+  slice1_param[7] /= num_heads;
+  auto& slice1_param_tensor = tensor_pool.CreateStaticTensor(
+      mha_slice1_param.GetDataType(), mha_slice1_param.GetQuantParams(),
+      mha_slice1_param.GetDims(), mha_slice1_param.GetTensorBytes(),
+      slice1_param.data());
+  // Create StridedSlice op.
+  auto slice1_output_dims =
+      ops[start_id + kSlice1Index].GetOutputTensor(0).GetDims();
+  slice1_output_dims[2] /= num_heads;
+  const std::vector<uint32_t> slice1_output_dim{slice1_output_dims};
+  auto& slice1_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kSlice1Index].GetOutputTensor(0), slice1_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kSlice1Index], {softmax_output},
+                {slice1_output});
+  new_ops.back().ClearParams();
+  new_ops.back().AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES,
+                                slice1_param_tensor);
+  // MatMul 1
+  const auto& matmulv_cache_output =
+      ops[start_id + kMatMulV1Index].GetOutputTensor(0);
+
+  std::vector<uint32_t> matmul1_v_output_dim = matmulv_cache_output.GetDims();
+  matmul1_v_output_dim[2] = matmul1_v_output_dim[2] / num_heads;
+  auto& matmul1_v_output = tensor_pool.CloneNativeTensorFrom(
+      matmulv_cache_output, matmul1_v_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kMatMulV1Index],
+                {slice1_output, std::nullopt}, {matmul1_v_output});
+  // Slice 2
+  // Create StridedSlice param ranges.
+  auto mha_slice2_param =
+      ops[start_id + kSlice2Index].GetTensorPararm(0).GetTensor();
+  auto mha_slice2_param_data = mha_slice2_param.GetStaticTensorData<int32_t>();
+  std::vector<int32_t> slice2_param(mha_slice2_param_data.value().begin(),
+                                    mha_slice2_param_data.value().end());
+  slice2_param[7] /= num_heads;
+  auto& slice2_param_tensor = tensor_pool.CreateStaticTensor(
+      mha_slice2_param.GetDataType(), mha_slice2_param.GetQuantParams(),
+      mha_slice2_param.GetDims(), mha_slice2_param.GetTensorBytes(),
+      slice2_param.data());
+  // Create StridedSlice op.
+  auto slice2_output_dims =
+      ops[start_id + kSlice2Index].GetOutputTensor(0).GetDims();
+  slice2_output_dims[2] /= num_heads;
+  auto& slice2_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kSlice2Index].GetOutputTensor(0), slice2_output_dims);
+  CloneOpWithIO(new_ops, ops[start_id + kSlice2Index], {softmax_output},
+                {slice2_output});
+  new_ops.back().ClearParams();
+  new_ops.back().AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES,
+                                slice2_param_tensor);
+  // MatMul 2
+  const auto& matmulv_slice_output =
+      ops[start_id + kMatMulV2Index].GetOutputTensor(0);
+  std::vector<uint32_t> matmul2_v_output_dim = matmulv_slice_output.GetDims();
+  matmul2_v_output_dim[2] = matmul2_v_output_dim[2] / num_heads;
+  auto& matmul2_v_output = tensor_pool.CloneNativeTensorFrom(
+      matmulv_slice_output, matmul2_v_output_dim);
+  CloneOpWithIO(new_ops, ops[start_id + kMatMulV2Index],
+                {slice2_output, std::nullopt}, {matmul2_v_output});
+  // Add
+  auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
+      ops[start_id + kAdd2Index].GetOutputTensor(0),
+      matmul1_v_output.GetDims());
+  CloneOpWithIO(new_ops, ops[start_id + kAdd2Index],
+                {matmul1_v_output, matmul2_v_output}, {add_final_output});
+  return add_final_output;
+}
+
 std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
                                       const qnn::TensorWrapper& mha_input,
                                       const qnn::TensorWrapper& mha_output,
                                       const ::qnn::OpWrapper& first_mul,
-                                      size_t num_heads, int32_t seq_len) {
+                                      size_t num_heads) {
   std::vector<OpWrapper> new_ops;
 
-  const auto& matmulk_cache_output =
-      ops[start_id + kMatMulK1Index].GetOutputTensor(0);
-  const auto& matmulk_slice_output =
-      ops[start_id + kMatMulK2Index].GetOutputTensor(0);
-  const auto& concat_mha_output =
-      ops[start_id + kConcatIndex].GetOutputTensor(0);
-  const auto& add_mha_output = ops[start_id + kAddIndex].GetOutputTensor(0);
-  const auto& softmax_mha_output =
-      ops[start_id + kSoftmaxIndex].GetOutputTensor(0);
-  const auto& matmulv_cache_output =
-      ops[start_id + kMatMulV1Index].GetOutputTensor(0);
-  const auto& matmulv_slice_output =
-      ops[start_id + kMatMulV2Index].GetOutputTensor(0);
-
-  // Slice tensor for multiplied by V
-  const std::vector<uint32_t> slice1_begin_dim{4};
-  const std::array<int32_t, 4> slice1_begin_data{0, 0, 0, 0};
-  auto& slice1_begin = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, slice1_begin_dim,
-      slice1_begin_data.size() * sizeof(slice1_begin_data[0]),
-      slice1_begin_data.data());
-  const std::vector<uint32_t> slice1_size_dim{4};
-  const std::array<int32_t, 4> slice1_size_data{1, 1, seq_len, 1280};
-  auto& slice1_size = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, slice1_size_dim,
-      slice1_size_data.size() * sizeof(slice1_size_data[0]),
-      slice1_size_data.data());
-
-  const std::vector<uint32_t> slice2_begin_dim{4};
-  const std::array<int32_t, 4> slice2_begin_data{0, 0, 0, 1280};
-  auto& slice2_begin = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, slice2_begin_dim,
-      slice2_begin_data.size() * sizeof(slice2_begin_data[0]),
-      slice2_begin_data.data());
-  const std::vector<uint32_t> slice2_size_dim{4};
-  const std::array<int32_t, 4> slice2_size_data{1, 1, seq_len, seq_len};
-  auto& slice2_size = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, slice2_size_dim,
-      slice2_size_data.size() * sizeof(slice2_size_data[0]),
-      slice2_size_data.data());
   // Split
   const std::vector<uint32_t> split_axis_dim{1};
   const std::array<int32_t, 1> split_axis_data{2};
@@ -110,9 +190,12 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
       split_axis_data.size() * sizeof(split_axis_data[0]),
       split_axis_data.data());
   std::vector<::qnn::TensorWrapperRef> head_inputs;
+  head_inputs.reserve(num_heads);
   for (int i = 0; i < num_heads; ++i) {
-    auto& split_output = tensor_pool.CloneNativeTensorFrom(
-        mha_input, {1, 1, static_cast<uint32_t>(seq_len), 256});
+    auto head_input_dims = ops[start_id].GetOutputTensor(0).GetDims();
+    head_input_dims[2] /= num_heads;
+    auto& split_output =
+        tensor_pool.CloneNativeTensorFrom(mha_input, head_input_dims);
     head_inputs.emplace_back(split_output);
   }
   auto split = BuildSplitOp(
@@ -123,79 +206,10 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
   std::vector<::qnn::TensorWrapperRef> concat_after_mha;
   concat_after_mha.reserve(num_heads);
   for (int i = 0; i < num_heads; ++i) {
-    // Mul
-    auto& mul_output = tensor_pool.CloneNativeTensorFrom(
-        first_mul.GetOutputTensor(0), head_inputs[i].get().GetDims());
-    CloneOpWithIO(new_ops, first_mul, {head_inputs[i].get(), std::nullopt},
-                  {mul_output});
-    // MatMul 1
-    std::vector<uint32_t> matmul1_output_dim = matmulk_cache_output.GetDims();
-    matmul1_output_dim[2] = matmul1_output_dim[2] / num_heads;
-    auto& matmul1_output = tensor_pool.CloneNativeTensorFrom(
-        matmulk_cache_output, matmul1_output_dim);
-    CloneOpWithIO(new_ops, ops[start_id + kMatMulK1Index],
-                  {mul_output, std::nullopt}, {matmul1_output});
-    // MatMul 2
-    std::vector<uint32_t> matmul2_output_dim = matmulk_slice_output.GetDims();
-    matmul2_output_dim[2] = matmul2_output_dim[2] / num_heads;
-    auto& matmul2_output = tensor_pool.CloneNativeTensorFrom(
-        matmulk_slice_output, matmul2_output_dim);
-    CloneOpWithIO(new_ops, ops[start_id + kMatMulK2Index],
-                  {mul_output, std::nullopt}, {matmul2_output});
-    // Concat
-    std::vector<uint32_t> concat_output_dim = matmul1_output.GetDims();
-    concat_output_dim[3] += matmul2_output.GetDim(3);
-    auto& concat_output =
-        tensor_pool.CloneNativeTensorFrom(concat_mha_output, concat_output_dim);
-    CloneOpWithIO(new_ops, ops[start_id + kConcatIndex],
-                  {matmul1_output, matmul2_output}, {concat_output});
-    // Add
-    auto& add_output = tensor_pool.CloneNativeTensorFrom(
-        add_mha_output, concat_output.GetDims());
-    CloneOpWithIO(new_ops, ops[start_id + kAddIndex],
-                  {concat_output, std::nullopt}, {add_output});
-    // Softmax
-    auto& softmax_output = tensor_pool.CloneNativeTensorFrom(
-        softmax_mha_output, add_output.GetDims());
-    CloneOpWithIO(new_ops, ops[start_id + kSoftmaxIndex], {add_output},
-                  {softmax_output});
-    // Slice 1
-    const std::vector<uint32_t> slice1_output_dim{
-        1, 1, static_cast<uint32_t>(seq_len), 1280};
-    auto& slice1_output =
-        tensor_pool.CloneNativeTensorFrom(softmax_output, slice1_output_dim);
-    auto slice1 =
-        BuildSliceOp(tensor_pool, {softmax_output, slice1_begin, slice1_size},
-                     {slice1_output});
-    std::move(slice1.begin(), slice1.end(), std::back_inserter(new_ops));
-    // MatMul 1
-    std::vector<uint32_t> matmul1_v_output_dim = matmulv_cache_output.GetDims();
-    matmul1_v_output_dim[2] = matmul1_v_output_dim[2] / num_heads;
-    auto& matmul1_v_output = tensor_pool.CloneNativeTensorFrom(
-        matmulv_cache_output, matmul1_v_output_dim);
-    CloneOpWithIO(new_ops, ops[start_id + kMatMulV1Index],
-                  {slice1_output, std::nullopt}, {matmul1_v_output});
-    // Slice 2
-    auto& slice2_output = tensor_pool.CloneNativeTensorFrom(
-        softmax_output,
-        {1, 1, static_cast<uint32_t>(seq_len), static_cast<uint32_t>(seq_len)});
-    auto slice2 =
-        BuildSliceOp(tensor_pool, {softmax_output, slice2_begin, slice2_size},
-                     {slice2_output});
-    std::move(slice2.begin(), slice2.end(), std::back_inserter(new_ops));
-    // MatMul 2
-    std::vector<uint32_t> matmul2_v_output_dim = matmulv_slice_output.GetDims();
-    matmul2_v_output_dim[2] = matmul2_v_output_dim[2] / num_heads;
-    auto& matmul2_v_output = tensor_pool.CloneNativeTensorFrom(
-        matmulv_slice_output, matmul2_v_output_dim);
-    CloneOpWithIO(new_ops, ops[start_id + kMatMulV2Index],
-                  {slice2_output, std::nullopt}, {matmul2_v_output});
-    // Add
-    auto& add_final_output = tensor_pool.CloneNativeTensorFrom(
-        mha_output, matmul1_v_output.GetDims());
-    concat_after_mha.emplace_back(add_final_output);
-    CloneOpWithIO(new_ops, ops[start_id + kAdd2Index],
-                  {matmul1_v_output, matmul2_v_output}, {add_final_output});
+    concat_after_mha.emplace_back(
+        BuildSingleSHA(ops, start_id, new_ops, tensor_pool,
+                       const_cast<TensorWrapper&>(head_inputs[i].get()),
+                       first_mul, num_heads));
   }
   // Concat
   auto concat_dims = mha_output.GetDims();
@@ -268,11 +282,10 @@ size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
 
   // Process MHA to SHA transformation.
   const int num_heads = pattern_input.GetDim(2);
-  const int32_t seq_len = pattern_input.GetDim(1);
   const auto& mha_input = new_ops.back().GetOutputTensor(0);
   auto sha_ops =
       TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, mha_input,
-                     pattern_output, first_mul, num_heads, seq_len);
+                     pattern_output, first_mul, num_heads);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
   // Validate new graph.
@@ -328,10 +341,9 @@ size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
 
   // Process MHA to SHA transformation.
   const int num_heads = pattern_input.GetDim(2);
-  const int32_t seq_len = pattern_input.GetDim(1);
   auto sha_ops =
       TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, pattern_input,
-                     pattern_output, first_mul, num_heads, seq_len);
+                     pattern_output, first_mul, num_heads);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
   // Validate new graph.
