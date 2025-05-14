@@ -67,10 +67,6 @@ class TensorPool {
     }
   }
 
-  std::list<TensorWrapper>::const_iterator GetBackIter() const;
-
-  void EraseAfter(std::list<TensorWrapper>::const_iterator it);
-
  private:
   std::list<TensorWrapper> tensor_wrappers_{};
 };

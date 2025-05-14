@@ -100,12 +100,4 @@ TensorWrapper& TensorPool::CloneStaticTensorFrom(
   return back;
 }
 
-std::list<TensorWrapper>::const_iterator TensorPool::GetBackIter() const {
-  return std::prev(tensor_wrappers_.end());
-}
-
-void TensorPool::EraseAfter(std::list<TensorWrapper>::const_iterator it) {
-  tensor_wrappers_.erase(std::next(it), tensor_wrappers_.end());
-}
-
 }  // namespace qnn

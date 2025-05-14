@@ -245,7 +245,6 @@ size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
   }
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
-  auto back_iter = tensor_pool.GetBackIter();
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
@@ -297,7 +296,6 @@ size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
   }
   QNN_LOG_WARNING(
       "[G2G] Validation failed. Rolling back to the original graph.");
-  tensor_pool.EraseAfter(back_iter);
   return 1;
 }
 
@@ -324,7 +322,6 @@ size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
   }
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
-  auto back_iter = tensor_pool.GetBackIter();
   std::vector<OpWrapper> new_ops;
   const auto& first_mul = ops[start_id + kMulIndex];
   const auto& pattern_input = first_mul.GetInputTensor(0);
@@ -358,7 +355,6 @@ size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
   }
   QNN_LOG_WARNING(
       "[G2G] Validation failed. Rolling back to the original graph.");
-  tensor_pool.EraseAfter(back_iter);
   return 1;
 }
 }  // namespace qnn

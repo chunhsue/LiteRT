@@ -52,6 +52,8 @@ class OpWrapper final {
 
   const qnn::TensorParamWrapper& GetTensorPararm(size_t i) const;
 
+  std::vector<std::reference_wrapper<TensorWrapper>> GetAllTensors();
+
   void StealOutputs(const OpWrapper& other);
 
   void SwapOutputs(const OpWrapper& other);

@@ -138,4 +138,18 @@ void OpWrapper::UpdateTensors(
   }
 }
 
+std::vector<std::reference_wrapper<TensorWrapper>> OpWrapper::GetAllTensors() {
+  std::vector<std::reference_wrapper<TensorWrapper>> ret;
+  for (auto& tensor_ref : input_tensors_) {
+    ret.emplace_back(const_cast<TensorWrapper&>(tensor_ref.get()));
+  }
+  for (auto& tensor_ref : output_tensors_) {
+    ret.emplace_back(const_cast<TensorWrapper&>(tensor_ref.get()));
+  }
+  for (const auto& param : tensor_params_) {
+    ret.emplace_back(const_cast<TensorWrapper&>(param.GetTensor()));
+  }
+  return ret;
+};
+
 }  // namespace qnn
