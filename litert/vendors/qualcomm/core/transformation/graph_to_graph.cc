@@ -4,6 +4,7 @@
 #include "litert/vendors/qualcomm/core/transformation/graph_to_graph.h"
 
 #include <array>
+#include <functional>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/op_code.h"
@@ -56,13 +57,13 @@ int GetPatternStartIndex(size_t start_index, const std::vector<OpWrapper>& ops,
 }
 
 // Returns the number of indices to skip for the next pattern match.
-// This function attempts to transform a specific pattern into another one
+// This function attempts to transform a specific pattern into optimized one
 // and returns the size of the skippable indices for the next index check.
-typedef size_t (*G2GTransform)(const QNN_INTERFACE_VER_TYPE* api,
-                               Qnn_BackendHandle_t backend,
-                               std::vector<OpWrapper>& ops, size_t start_index,
-                               TensorPool& tensor_pool, size_t pattern_size);
-void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
+typedef size_t (*G2GTransform)(
+    std::function<bool(OpWrapper&)> validate_op_config,
+    std::vector<OpWrapper>& ops, size_t start_index, TensorPool& tensor_pool,
+    size_t pattern_size);
+void Transform(std::function<bool(OpWrapper&)> validate_op_config,
                std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
                const std::vector<QnnOpCode>& pattern_ops,
                G2GTransform custom_transform) {
@@ -72,8 +73,9 @@ void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
     if (auto pattern_start_index = GetPatternStartIndex(
             start_index, ops, pattern_ops, bad_match_table);
         pattern_start_index != -1) {
-      start_index += custom_transform(api, backend, ops, pattern_start_index,
-                                      tensor_pool, pattern_ops.size());
+      start_index +=
+          custom_transform(validate_op_config, ops, pattern_start_index,
+                           tensor_pool, pattern_ops.size());
     } else {
       break;
     }
@@ -84,18 +86,10 @@ void Transform(const QNN_INTERFACE_VER_TYPE* api, Qnn_BackendHandle_t backend,
 
 // TODO (jiunkaiy): Add more G2G transformation.
 void GraphToGraphTransform(const G2GConfig g2g_option,
-                           const QNN_INTERFACE_VER_TYPE* api,
-                           Qnn_BackendHandle_t backend,
-                           std::vector<OpWrapper>& ops,
-                           TensorPool& tensor_pool) {
+                           std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
+                           std::function<bool(OpWrapper&)> validate_op_config) {
   if (g2g_option == G2GConfig::kOff) {
     return;
-  }
-
-  if (api == nullptr) {
-    QNN_LOG_WARNING(
-        "[G2G] Skip graph validation process since qnn interface is "
-        "nullptr.");
   }
 
   // MatMul-convert Fusion
@@ -106,14 +100,14 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
         QnnOpCode::kMatMul,
         QnnOpCode::kConvert,
     };
-    Transform(api, backend, ops, tensor_pool, matmul_convert_decode,
+    Transform(validate_op_config, ops, tensor_pool, matmul_convert_decode,
               FuseMatMulConvertDecode);
     const std::vector<QnnOpCode> matmul_convert_prefill = {
         QnnOpCode::kMatMul,
         QnnOpCode::kMatMul,
         QnnOpCode::kConvert,
     };
-    Transform(api, backend, ops, tensor_pool, matmul_convert_prefill,
+    Transform(validate_op_config, ops, tensor_pool, matmul_convert_prefill,
               FuseMatMulConvertPrefill);
   }
   // MHA Optimization
@@ -134,7 +128,7 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
         QnnOpCode::kElementWiseAdd,
         QnnOpCode::kReshape,
     };
-    Transform(api, backend, ops, tensor_pool, gemma3_mha_decode,
+    Transform(validate_op_config, ops, tensor_pool, gemma3_mha_decode,
               OptimizeMHADecode);
   }
   if (g2g_option == G2GConfig::kMHAOptPrefill ||
@@ -159,7 +153,7 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
         QnnOpCode::kTranspose,
         QnnOpCode::kReshape,
     };
-    Transform(api, backend, ops, tensor_pool, gemma3_mha_prefill,
+    Transform(validate_op_config, ops, tensor_pool, gemma3_mha_prefill,
               OptimizeMHAPrefill);
   }
 }

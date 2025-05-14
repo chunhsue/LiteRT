@@ -24,10 +24,8 @@ enum class G2GConfig {
 };
 
 void GraphToGraphTransform(const G2GConfig g2g_option,
-                           const QNN_INTERFACE_VER_TYPE* api,
-                           Qnn_BackendHandle_t backend,
-                           std::vector<OpWrapper>& ops,
-                           TensorPool& tensor_pool);
+                           std::vector<OpWrapper>& ops, TensorPool& tensor_pool,
+                           std::function<bool(OpWrapper&)> validate_op_config);
 }  // namespace qnn
 
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_GRAPH_TO_GRAPH_H_

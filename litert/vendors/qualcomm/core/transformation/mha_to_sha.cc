@@ -4,6 +4,7 @@
 #include "litert/vendors/qualcomm/core/transformation/mha_to_sha.h"
 
 #include <array>
+#include <functional>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/builders/concatenation_op_builder.h"
@@ -217,8 +218,7 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
 
 }  // namespace
 
-size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
-                          Qnn_BackendHandle_t backend,
+size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
                           std::vector<OpWrapper>& ops, size_t start_id,
                           TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
@@ -280,13 +280,12 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
 
   // Validate new graph.
   // TODO(jiunkaiy): Disable bypassing Split int16 op validator.
-  const bool is_valid = std::all_of(
-      new_ops.begin(), new_ops.end(),
-      [api, backend](::qnn::OpWrapper& op_wrapper) -> bool {
-        return op_wrapper.IsOpCode(QnnOpCode::kSplit) || api == nullptr ||
-               (QNN_SUCCESS == api->backendValidateOpConfig(
-                                   backend, op_wrapper.GetOpConfig()));
-      });
+  const bool is_valid =
+      std::all_of(new_ops.begin(), new_ops.end(),
+                  [validate_op_config](::qnn::OpWrapper& op_wrapper) -> bool {
+                    return op_wrapper.IsOpCode(QnnOpCode::kSplit) ||
+                           validate_op_config(op_wrapper);
+                  });
   if (is_valid) {
     // Replace the matched pattern with a newly generated subgraph.
     size_t step_size = new_ops.size();
@@ -302,8 +301,7 @@ size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
   return 1;
 }
 
-size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
-                         Qnn_BackendHandle_t backend,
+size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
                          std::vector<OpWrapper>& ops, size_t start_id,
                          TensorPool& tensor_pool, size_t pattern_size) {
   // Connection check
@@ -343,13 +341,12 @@ size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
 
   // Validate new graph.
   // TODO(jiunkaiy): Disable bypassing Split int16 op validator.
-  const bool is_valid = std::all_of(
-      new_ops.begin(), new_ops.end(),
-      [api, backend](::qnn::OpWrapper& op_wrapper) -> bool {
-        return op_wrapper.IsOpCode(QnnOpCode::kSplit) || api == nullptr ||
-               (QNN_SUCCESS == api->backendValidateOpConfig(
-                                   backend, op_wrapper.GetOpConfig()));
-      });
+  const bool is_valid =
+      std::all_of(new_ops.begin(), new_ops.end(),
+                  [validate_op_config](::qnn::OpWrapper& op_wrapper) -> bool {
+                    return op_wrapper.IsOpCode(QnnOpCode::kSplit) ||
+                           validate_op_config(op_wrapper);
+                  });
   if (is_valid) {
     // Replace the matched pattern with a newly generated subgraph.
     size_t step_size = new_ops.size();

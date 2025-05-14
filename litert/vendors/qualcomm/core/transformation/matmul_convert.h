@@ -4,6 +4,7 @@
 #ifndef ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_
 #define ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_
 
+#include <functional>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/op_code.h"
@@ -13,15 +14,13 @@
 
 namespace qnn {
 
-size_t FuseMatMulConvertDecode(const QNN_INTERFACE_VER_TYPE* api,
-                             Qnn_BackendHandle_t backend,
-                             std::vector<OpWrapper>& ops, size_t start_id,
-                             TensorPool& tensor_pool, size_t pattern_size);
+size_t FuseMatMulConvertDecode(std::function<bool(OpWrapper&)> validate_op_config,
+                               std::vector<OpWrapper>& ops, size_t start_id,
+                               TensorPool& tensor_pool, size_t pattern_size);
 
-size_t FuseMatMulConvertPrefill(const QNN_INTERFACE_VER_TYPE* api,
-                              Qnn_BackendHandle_t backend,
-                              std::vector<OpWrapper>& ops, size_t start_id,
-                              TensorPool& tensor_pool, size_t pattern_size);
+size_t FuseMatMulConvertPrefill(std::function<bool(OpWrapper&)> validate_op_config,
+                                std::vector<OpWrapper>& ops, size_t start_id,
+                                TensorPool& tensor_pool, size_t pattern_size);
 
 }  // namespace qnn
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MATMUL_CONVERT_H_

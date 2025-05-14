@@ -4,6 +4,7 @@
 #ifndef ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MHA_TO_SHA_H_
 #define ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MHA_TO_SHA_H_
 
+#include <functional>
 #include <vector>
 
 #include "litert/vendors/qualcomm/core/op_code.h"
@@ -14,14 +15,14 @@
 
 namespace qnn {
 
-size_t OptimizeMHAPrefill(const QNN_INTERFACE_VER_TYPE* api,
-                          Qnn_BackendHandle_t backend,
+size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
                           std::vector<OpWrapper>& ops, size_t start_id,
                           TensorPool& tensor_pool, size_t pattern_size);
-size_t OptimizeMHADecode(const QNN_INTERFACE_VER_TYPE* api,
-                         Qnn_BackendHandle_t backend,
+
+size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
                          std::vector<OpWrapper>& ops, size_t start_id,
                          TensorPool& tensor_pool, size_t pattern_size);
+
 }  // namespace qnn
 
 #endif  // ODML_LITERT_LITERT_VENDORS_QUALCOMM_CORE_TRANSFORMATION_MHA_TO_SHA_H_

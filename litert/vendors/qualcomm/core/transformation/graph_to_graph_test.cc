@@ -103,7 +103,8 @@ TEST(MatMulConvertTest, Gemma3Prefill) {
   ASSERT_EQ(op_wrappers.size(), 3);
 
   const ::qnn::G2GConfig g2g_option = ::qnn::G2GConfig::kMatMulConvert;
-  GraphToGraphTransform(g2g_option, nullptr, nullptr, op_wrappers, tensor_pool);
+  GraphToGraphTransform(g2g_option, op_wrappers, tensor_pool,
+                        [](OpWrapper& op) { return true; });
 
   ASSERT_EQ(op_wrappers.size(), 2);
   ASSERT_EQ(op_wrappers[0].IsOpCode(QnnOpCode::kMatMul), true);
@@ -173,7 +174,8 @@ TEST(MatMulConvertTest, Gemma3Decode) {
   ASSERT_EQ(op_wrappers.size(), 2);
 
   const ::qnn::G2GConfig g2g_option = ::qnn::G2GConfig::kMatMulConvert;
-  GraphToGraphTransform(g2g_option, nullptr, nullptr, op_wrappers, tensor_pool);
+  GraphToGraphTransform(g2g_option, op_wrappers, tensor_pool,
+                        [](OpWrapper& op) { return true; });
 
   ASSERT_EQ(op_wrappers.size(), 1);
   ASSERT_EQ(op_wrappers[0].IsOpCode(QnnOpCode::kMatMul), true);
@@ -422,7 +424,8 @@ TEST(MHAConvertTest, Gemma3Prefill) {
   ASSERT_EQ(op_wrappers.size(), 18);
 
   const ::qnn::G2GConfig g2g_option = ::qnn::G2GConfig::kMHAOptPrefill;
-  GraphToGraphTransform(g2g_option, nullptr, nullptr, op_wrappers, tensor_pool);
+  GraphToGraphTransform(g2g_option, op_wrappers, tensor_pool,
+                        [](OpWrapper& op) { return true; });
 
   ASSERT_EQ(op_wrappers.size(), 49);
 
@@ -653,7 +656,8 @@ TEST(MHAConvertTest, Gemma3Decode) {
   ASSERT_EQ(op_wrappers.size(), 14);
 
   const ::qnn::G2GConfig g2g_option = ::qnn::G2GConfig::kMHAOpt;
-  GraphToGraphTransform(g2g_option, nullptr, nullptr, op_wrappers, tensor_pool);
+  GraphToGraphTransform(g2g_option, op_wrappers, tensor_pool,
+                        [](OpWrapper& op) { return true; });
 
   ASSERT_EQ(op_wrappers.size(), 47);
 
