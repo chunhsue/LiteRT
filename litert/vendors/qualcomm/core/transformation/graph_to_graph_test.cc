@@ -4,7 +4,6 @@
 #include "litert/vendors/qualcomm/core/transformation/graph_to_graph.h"
 
 #include <algorithm>
-#include <iterator>
 #include <vector>
 
 #include <gtest/gtest.h>

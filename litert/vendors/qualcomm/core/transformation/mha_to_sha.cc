@@ -62,8 +62,6 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t num_heads, int32_t seq_len) {
   std::vector<OpWrapper> new_ops;
 
-  const auto& mul_output_quant_param =
-      first_mul.GetOutputTensor(0).GetQuantParams();
   const auto& matmulk_cache_output =
       ops[start_id + kMatMulK1Index].GetOutputTensor(0);
   const auto& matmulk_slice_output =
@@ -127,7 +125,7 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
   for (int i = 0; i < num_heads; ++i) {
     // Mul
     auto& mul_output = tensor_pool.CloneNativeTensorFrom(
-        head_inputs[i].get(), mul_output_quant_param);
+        first_mul.GetOutputTensor(0), head_inputs[i].get().GetDims());
     CloneOpWithIO(new_ops, first_mul, {head_inputs[i].get(), std::nullopt},
                   {mul_output});
     // MatMul 1
