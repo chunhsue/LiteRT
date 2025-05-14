@@ -809,7 +809,7 @@ LiteRtStatus ConvertOp(const bool use_htp_preferences,
   return kLiteRtStatusOk;
 }
 
-void CreateGraphTensorIfNeeded(
+void AddUsedTensorToQnn(
     const QnnApi* qnn_api, Qnn_GraphHandle_t& graph_handle,
     ::qnn::TensorWrapper& tensor,
     std::unordered_set<const ::qnn::TensorWrapper*>& created_tensors,
@@ -843,9 +843,8 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
     LITERT_RETURN_IF_ERROR(
         ConvertTensor(subgraph_input, tensor_pool, tensor_wrapper));
     litert_tensor_to_wrapper.emplace(subgraph_input.Get(), tensor_wrapper);
-    CreateGraphTensorIfNeeded(qnn.Api(), graph_mapper.QnnGraph(),
-                              *tensor_wrapper, created_tensors,
-                              options.GetUseQint16AsQuint16());
+    AddUsedTensorToQnn(qnn.Api(), graph_mapper.QnnGraph(), *tensor_wrapper,
+                       created_tensors, options.GetUseQint16AsQuint16());
   }
 
   for (const auto& subgraph_output : graph_mapper.Graph().Outputs()) {
@@ -903,9 +902,9 @@ LiteRtStatus MapGraph(QnnManager& qnn, Qnn_ContextHandle_t context_handle,
   // Create ops and their corresponding tensors.
   for (auto& op_wrapper : graph_op_wrappers) {
     for (const auto& tensor_wrapper_ref : op_wrapper.GetAllTensors()) {
-      CreateGraphTensorIfNeeded(qnn.Api(), graph_mapper.QnnGraph(),
-                                tensor_wrapper_ref.get(), created_tensors,
-                                options.GetUseQint16AsQuint16());
+      AddUsedTensorToQnn(qnn.Api(), graph_mapper.QnnGraph(),
+                         tensor_wrapper_ref.get(), created_tensors,
+                         options.GetUseQint16AsQuint16());
     }
     qnn.Api()->graphAddNode(graph_mapper.QnnGraph(), op_wrapper.GetOpConfig());
   }
