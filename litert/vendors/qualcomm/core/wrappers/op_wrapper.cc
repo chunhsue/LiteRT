@@ -107,10 +107,6 @@ const qnn::TensorParamWrapper& OpWrapper::GetTensorPararm(size_t i) const {
   return tensor_params_[i];
 }
 
-void OpWrapper::StealOutputs(const OpWrapper& other) {
-  this->output_tensors_ = other.output_tensors_;
-}
-
 void OpWrapper::SwapOutputs(const OpWrapper& other) {
   this->output_tensors_.swap(
       const_cast<
@@ -118,9 +114,7 @@ void OpWrapper::SwapOutputs(const OpWrapper& other) {
           other.output_tensors_));
 }
 
-void OpWrapper::ClearParams() {
-  tensor_params_.clear();
-}
+void OpWrapper::ClearParams() { tensor_params_.clear(); }
 
 void OpWrapper::UpdateTensors(
     const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,
