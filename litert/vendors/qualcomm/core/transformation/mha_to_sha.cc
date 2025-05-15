@@ -187,10 +187,9 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
   std::vector<OpWrapper> new_ops;
 
   // Split
-  const std::vector<uint32_t> split_axis_dim{1};
   const std::array<int32_t, 1> split_axis_data{2};
   auto& split_axis = tensor_pool.CreateStaticTensor(
-      QNN_DATATYPE_INT_32, {}, split_axis_dim,
+      QNN_DATATYPE_INT_32, {}, {split_axis_data.size()},
       split_axis_data.size() * sizeof(split_axis_data[0]),
       split_axis_data.data());
   std::vector<::qnn::TensorWrapperRef> head_inputs;
