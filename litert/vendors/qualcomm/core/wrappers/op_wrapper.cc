@@ -111,7 +111,7 @@ void OpWrapper::SwapOutputs(OpWrapper& other) {
   this->output_tensors_.swap(other.output_tensors_);
 }
 
-void OpWrapper::ClearParams() { tensor_params_.clear(); }
+void OpWrapper::ClearTensorParams() { tensor_params_.clear(); }
 
 void OpWrapper::UpdateTensors(
     const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,

@@ -124,7 +124,7 @@ TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
       ops[start_id + kSlice1Index].GetOutputTensor(0), slice1_output_dim);
   EmplaceOpWithIO(new_ops, ops[start_id + kSlice1Index], {softmax_output},
                   {slice1_output});
-  new_ops.back().ClearParams();
+  new_ops.back().ClearTensorParams();
   new_ops.back().AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES,
                                 slice1_param_tensor);
   // MatMul 1
@@ -157,7 +157,7 @@ TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
       ops[start_id + kSlice2Index].GetOutputTensor(0), slice2_output_dims);
   EmplaceOpWithIO(new_ops, ops[start_id + kSlice2Index], {softmax_output},
                   {slice2_output});
-  new_ops.back().ClearParams();
+  new_ops.back().ClearTensorParams();
   new_ops.back().AddTensorParam(QNN_OP_STRIDED_SLICE_PARAM_RANGES,
                                 slice2_param_tensor);
   // MatMul 2

@@ -60,7 +60,7 @@ class OpWrapper final {
       const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,
       const std::vector<std::optional<qnn::TensorWrapperRef>>& outputs);
 
-  void ClearParams();
+  void ClearTensorParams();
 
  private:
   const char* type_name_{nullptr};
