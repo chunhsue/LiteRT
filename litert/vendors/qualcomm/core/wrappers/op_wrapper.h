@@ -54,7 +54,7 @@ class OpWrapper final {
 
   std::vector<std::reference_wrapper<TensorWrapper>> GetAllTensors();
 
-  void SwapOutputs(const OpWrapper& other);
+  void SwapOutputs(OpWrapper& other);
 
   void UpdateTensors(
       const std::vector<std::optional<qnn::TensorWrapperRef>>& inputs,
