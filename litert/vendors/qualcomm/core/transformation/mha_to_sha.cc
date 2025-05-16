@@ -45,6 +45,10 @@ constexpr size_t kReshape2Index = 13;
 constexpr size_t kTranspose2Index = 14;
 constexpr size_t kReshape3Index = 15;
 
+// QNN Slice Param ranges in the form (begin, end, stride) for each axis. To
+// set the 3rd axis "end" value, we need to access ranges[3 * 2 + 2 - 1 = 7].
+constexpr size_t kSlice3rdAxisEndIndex = 7;
+
 // Emplaces the operator with updated inputs/outputs into new_ops.
 // This function copies the source_op and updates the tensors according to
 // inputs and outputs. The std::nullopt input/output element indicates that the
@@ -62,17 +66,18 @@ TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
                               std::vector<OpWrapper>& new_ops,
                               TensorPool& tensor_pool,
                               qnn::TensorWrapper& sha_input,
-                              const ::qnn::OpWrapper& first_mul,
+                              const ::qnn::OpWrapper& scaling_mul,
                               size_t num_heads) {
   // Mul
   auto& mul_output = tensor_pool.CloneNativeTensorFrom(
-      first_mul.GetOutputTensor(0), sha_input.GetDims());
-  EmplaceOpWithIO(new_ops, first_mul, {sha_input, std::nullopt}, {mul_output});
+      scaling_mul.GetOutputTensor(0), sha_input.GetDims());
+  EmplaceOpWithIO(new_ops, scaling_mul, {sha_input, std::nullopt},
+                  {mul_output});
   // MatMul 1
   const auto& matmulk_cache_output =
       ops[start_id + kMatMulK1Index].GetOutputTensor(0);
   std::vector<uint32_t> matmul1_output_dim = matmulk_cache_output.GetDims();
-  matmul1_output_dim[2] = matmul1_output_dim[2] / num_heads;
+  matmul1_output_dim[2] /= num_heads;
   auto& matmul1_output = tensor_pool.CloneNativeTensorFrom(matmulk_cache_output,
                                                            matmul1_output_dim);
   EmplaceOpWithIO(new_ops, ops[start_id + kMatMulK1Index],
@@ -108,20 +113,19 @@ TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
   auto mha_slice1_param =
       ops[start_id + kSlice1Index].GetTensorPararm(0).GetTensor();
   auto mha_slice1_param_data = mha_slice1_param.GetStaticTensorData<int32_t>();
-  std::vector<int32_t> slice1_param(mha_slice1_param_data.value().begin(),
-                                    mha_slice1_param_data.value().end());
-  slice1_param[7] /= num_heads;
+  std::vector<int32_t> slice1_ranges(mha_slice1_param_data.value().begin(),
+                                     mha_slice1_param_data.value().end());
+  slice1_ranges[kSlice3rdAxisEndIndex] /= num_heads;
   auto& slice1_param_tensor = tensor_pool.CreateStaticTensor(
       mha_slice1_param.GetDataType(), mha_slice1_param.GetQuantParams(),
       mha_slice1_param.GetDims(), mha_slice1_param.GetTensorBytes(),
-      slice1_param.data());
+      slice1_ranges.data());
   // Create StridedSlice op.
   auto slice1_output_dims =
       ops[start_id + kSlice1Index].GetOutputTensor(0).GetDims();
   slice1_output_dims[2] /= num_heads;
-  const std::vector<uint32_t> slice1_output_dim{slice1_output_dims};
   auto& slice1_output = tensor_pool.CloneNativeTensorFrom(
-      ops[start_id + kSlice1Index].GetOutputTensor(0), slice1_output_dim);
+      ops[start_id + kSlice1Index].GetOutputTensor(0), slice1_output_dims);
   EmplaceOpWithIO(new_ops, ops[start_id + kSlice1Index], {softmax_output},
                   {slice1_output});
   new_ops.back().ClearTensorParams();
@@ -142,13 +146,13 @@ TensorWrapper& BuildSingleSHA(std::vector<OpWrapper>& ops, size_t start_id,
   auto mha_slice2_param =
       ops[start_id + kSlice2Index].GetTensorPararm(0).GetTensor();
   auto mha_slice2_param_data = mha_slice2_param.GetStaticTensorData<int32_t>();
-  std::vector<int32_t> slice2_param(mha_slice2_param_data.value().begin(),
-                                    mha_slice2_param_data.value().end());
-  slice2_param[7] /= num_heads;
+  std::vector<int32_t> slice2_ranges(mha_slice2_param_data.value().begin(),
+                                     mha_slice2_param_data.value().end());
+  slice2_ranges[kSlice3rdAxisEndIndex] /= num_heads;
   auto& slice2_param_tensor = tensor_pool.CreateStaticTensor(
       mha_slice2_param.GetDataType(), mha_slice2_param.GetQuantParams(),
       mha_slice2_param.GetDims(), mha_slice2_param.GetTensorBytes(),
-      slice2_param.data());
+      slice2_ranges.data());
   // Create StridedSlice op.
   auto slice2_output_dims =
       ops[start_id + kSlice2Index].GetOutputTensor(0).GetDims();
@@ -182,37 +186,39 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
                                       size_t start_id, TensorPool& tensor_pool,
                                       const qnn::TensorWrapper& mha_input,
                                       const qnn::TensorWrapper& mha_output,
-                                      const ::qnn::OpWrapper& first_mul,
+                                      const ::qnn::OpWrapper& scaling_mul,
                                       size_t num_heads) {
   std::vector<OpWrapper> new_ops;
 
+  // Prepare inputs for num_heads SHAs.
+  std::vector<::qnn::TensorWrapperRef> sha_inputs;
+  sha_inputs.reserve(num_heads);
+  for (int i = 0; i < num_heads; ++i) {
+    auto head_input_dims = ops[start_id].GetOutputTensor(0).GetDims();
+    head_input_dims[2] /= num_heads;
+    auto& split_output =
+        tensor_pool.CloneNativeTensorFrom(mha_input, head_input_dims);
+    sha_inputs.emplace_back(split_output);
+  }
   // Split
   const std::array<int32_t, 1> split_axis_data{2};
   auto& split_axis = tensor_pool.CreateStaticTensor(
       QNN_DATATYPE_INT_32, {}, {split_axis_data.size()},
       split_axis_data.size() * sizeof(split_axis_data[0]),
       split_axis_data.data());
-  std::vector<::qnn::TensorWrapperRef> head_inputs;
-  head_inputs.reserve(num_heads);
-  for (int i = 0; i < num_heads; ++i) {
-    auto head_input_dims = ops[start_id].GetOutputTensor(0).GetDims();
-    head_input_dims[2] /= num_heads;
-    auto& split_output =
-        tensor_pool.CloneNativeTensorFrom(mha_input, head_input_dims);
-    head_inputs.emplace_back(split_output);
-  }
   auto split = BuildSplitOp(
       tensor_pool, {split_axis, const_cast<::qnn::TensorWrapper&>(mha_input)},
-      head_inputs, num_heads);
+      sha_inputs, num_heads);
   std::move(split.begin(), split.end(), std::back_inserter(new_ops));
-
-  std::vector<::qnn::TensorWrapperRef> concat_after_mha;
-  concat_after_mha.reserve(num_heads);
+  // Prepare outputs for num_heads SHAs.
+  std::vector<::qnn::TensorWrapperRef> sha_outputs;
+  sha_outputs.reserve(num_heads);
+  // Create num_heads SHA.
   for (int i = 0; i < num_heads; ++i) {
-    concat_after_mha.emplace_back(
+    sha_outputs.emplace_back(
         BuildSingleSHA(ops, start_id, new_ops, tensor_pool,
-                       const_cast<TensorWrapper&>(head_inputs[i].get()),
-                       first_mul, num_heads));
+                       const_cast<TensorWrapper&>(sha_inputs[i].get()),
+                       scaling_mul, num_heads));
   }
   // Concat
   auto concat_dims = mha_output.GetDims();
@@ -220,7 +226,7 @@ std::vector<OpWrapper> TransformToSHA(std::vector<OpWrapper>& ops,
   auto& concat_output =
       tensor_pool.CloneNativeTensorFrom(mha_output, concat_dims);
   auto concat_final =
-      BuildConcatenationOp(tensor_pool, concat_after_mha, {concat_output}, 3);
+      BuildConcatenationOp(tensor_pool, sha_outputs, {concat_output}, 3);
   std::move(concat_final.begin(), concat_final.end(),
             std::back_inserter(new_ops));
   // Reshape
@@ -261,8 +267,8 @@ size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Prefill)");
   std::vector<OpWrapper> new_ops;
-  const auto& first_mul = ops[start_id + kMulIndex];
-  const auto& pattern_input = first_mul.GetInputTensor(0);
+  const auto& scaling_mul = ops[start_id + kMulIndex];
+  const auto& pattern_input = scaling_mul.GetInputTensor(0);
   const auto& pattern_output =
       ops[start_id + pattern_size - 1].GetOutputTensor(0);
 
@@ -288,7 +294,7 @@ size_t OptimizeMHAPrefill(std::function<bool(OpWrapper&)> validate_op_config,
   const auto& mha_input = new_ops.back().GetOutputTensor(0);
   auto sha_ops =
       TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, mha_input,
-                     pattern_output, first_mul, num_heads);
+                     pattern_output, scaling_mul, num_heads);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
   // Validate new graph.
@@ -337,8 +343,8 @@ size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
   // Graph transform
   QNN_LOG_INFO("[G2G] MHA optimization (Decode)");
   std::vector<OpWrapper> new_ops;
-  const auto& first_mul = ops[start_id + kMulIndex];
-  const auto& pattern_input = first_mul.GetInputTensor(0);
+  const auto& scaling_mul = ops[start_id + kMulIndex];
+  const auto& pattern_input = scaling_mul.GetInputTensor(0);
   const auto& pattern_output =
       ops[start_id + pattern_size - 1].GetOutputTensor(0);
 
@@ -346,7 +352,7 @@ size_t OptimizeMHADecode(std::function<bool(OpWrapper&)> validate_op_config,
   const int num_heads = pattern_input.GetDim(2);
   auto sha_ops =
       TransformToSHA(ops, start_id + new_ops.size(), tensor_pool, pattern_input,
-                     pattern_output, first_mul, num_heads);
+                     pattern_output, scaling_mul, num_heads);
   std::move(sha_ops.begin(), sha_ops.end(), std::back_inserter(new_ops));
 
   // Validate new graph.
