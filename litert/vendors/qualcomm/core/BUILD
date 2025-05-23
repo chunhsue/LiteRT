@@ -54,3 +54,27 @@ cc_library(
         "@com_google_absl//absl/strings:string_view",
     ],
 )
+
+
+cc_library(
+    name = "graph",
+    srcs = ["graph.cc"],
+    hdrs = ["graph.h"],
+    deps = [
+    ],
+)
+
+cc_test(
+    name = "graph_test",
+    srcs = [
+        "graph_test.cc",
+    ],
+    deps = [
+        ":graph",
+        # "//litert/vendors/qualcomm/core/wrappers:quantize_params_wrapper",
+        # "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
+        "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
+        "@com_google_googletest//:gtest_main",
+        # "@qairt//:qnn_lib_headers",
+    ],
+)

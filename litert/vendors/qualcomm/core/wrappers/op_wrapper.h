@@ -44,6 +44,10 @@ class OpWrapper final {
 
   bool IsOpCode(QnnOpCode op_code) const;
 
+  QnnOpCode GetOpCode() const {
+    return op_code_;
+  }
+
   const qnn::TensorWrapper& GetInputTensor(size_t i) const;
 
   const qnn::TensorWrapper& GetOutputTensor(size_t i) const;

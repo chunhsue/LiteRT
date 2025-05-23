@@ -17,11 +17,11 @@
 #include <variant>
 #include <vector>
 
+#include "QnnTypes.h"         // from @qairt
 #include "absl/types/span.h"  // from @com_google_absl
 #include "litert/vendors/qualcomm/core/utils/log.h"
 #include "litert/vendors/qualcomm/core/utils/miscs.h"
 #include "litert/vendors/qualcomm/core/wrappers/quantize_params_wrapper.h"
-#include "QnnTypes.h"  // from @qairt
 
 namespace qnn {
 
