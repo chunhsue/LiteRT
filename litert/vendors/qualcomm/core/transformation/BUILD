@@ -48,6 +48,7 @@ cc_library(
     deps = [
         ":matmul_convert",
         ":mha_to_sha",
+        ":qkv",
         "//litert/vendors/qualcomm/core:op_code",
         "//litert/vendors/qualcomm/core:tensor_pool",
         "//litert/vendors/qualcomm/core/utils:log",
@@ -75,6 +76,27 @@ cc_library(
     name = "mha_to_sha",
     srcs = ["mha_to_sha.cc"],
     hdrs = ["mha_to_sha.h"],
+    tags = [
+        # Don't build/test in OS until qnn is available.
+        "nobuilder",
+    ],
+    deps = [
+        "//litert/vendors/qualcomm/core:op_code",
+        "//litert/vendors/qualcomm/core:tensor_pool",
+        "//litert/vendors/qualcomm/core/builders:concatenation_op_builder",
+        "//litert/vendors/qualcomm/core/builders:reshape_op_builder",
+        "//litert/vendors/qualcomm/core/builders:split_op_builder",
+        "//litert/vendors/qualcomm/core/utils:log",
+        "//litert/vendors/qualcomm/core/wrappers:op_wrapper",
+        "//litert/vendors/qualcomm/core/wrappers:tensor_wrapper",
+        "@qairt//:qnn_lib_headers",
+    ],
+)
+
+cc_library(
+    name = "qkv",
+    srcs = ["qkv.cc"],
+    hdrs = ["qkv.h"],
     tags = [
         # Don't build/test in OS until qnn is available.
         "nobuilder",

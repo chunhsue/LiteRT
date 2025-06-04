@@ -11,6 +11,7 @@
 #include "litert/vendors/qualcomm/core/tensor_pool.h"
 #include "litert/vendors/qualcomm/core/transformation/matmul_convert.h"
 #include "litert/vendors/qualcomm/core/transformation/mha_to_sha.h"
+#include "litert/vendors/qualcomm/core/transformation/qkv.h"
 #include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
 
 namespace qnn {
@@ -153,6 +154,39 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
     };
     Transform(validate_op_config, ops, tensor_pool, gemma3_mha_prefill,
               OptimizeMHAPrefill);
+  }
+  if (g2g_option == G2GConfig::kMHAOptPrefill ||
+      g2g_option == G2GConfig::kMHAOpt) {
+    const std::vector<QnnOpCode> gemma3_qkv_prefill = {
+        // QKV projection
+        QnnOpCode::kFullyConnected,
+        QnnOpCode::kReshape,
+        // Split into Q, K, and V.
+        QnnOpCode::kReshape,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        // RmsNorm for Q
+        QnnOpCode::kRmsNorm,
+        // RmsNorm for K
+        QnnOpCode::kRmsNorm,
+        // RoPE for Q
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kConcat,
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kElementWiseAdd,
+        // RoPE for K
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kStridedSlice,
+        QnnOpCode::kConcat,
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kElementWiseMultiply,
+        QnnOpCode::kElementWiseAdd,
+    };
+    Transform(validate_op_config, ops, tensor_pool, gemma3_qkv_prefill,
+              SplitQKV);
   }
 }
 }  // namespace qnn
