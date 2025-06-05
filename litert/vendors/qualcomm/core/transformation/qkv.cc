@@ -38,13 +38,7 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
   QNN_LOG_INFO("Fliter Size: %d", filter_data.size());
   const size_t num_total_heads = kNumHeads + kNumKVHeads * 2;
   const size_t head_size = filter_tensor.GetDim(0) / num_total_heads;
-  std::vector<int8_t> q_filter(
-      filter_data.begin(),
-      filter_data.begin() + head_size * kNumHeads * filter_tensor.GetDim(1));
-  auto& q_filter_tensor = tensor_pool.CreateStaticTensor(
-      filter_tensor.GetDataType(), filter_tensor.GetQuantParams(),
-      {static_cast<uint32_t>(head_size * kNumHeads), filter_tensor.GetDim(1)},
-      q_filter.size() * sizeof(q_filter[0]), q_filter.data());
+
   std::vector<int8_t> k_filter(
       filter_data.begin() + head_size * kNumHeads * filter_tensor.GetDim(1),
       filter_data.begin() +
@@ -62,36 +56,52 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
       {static_cast<uint32_t>(head_size * kNumKVHeads), filter_tensor.GetDim(1)},
       v_filter.size() * sizeof(v_filter[0]), v_filter.data());
 
-  QNN_LOG_INFO("Q Fliter Size: %d", q_filter.size());
   QNN_LOG_INFO("K Fliter Size: %d", k_filter.size());
   QNN_LOG_INFO("V Fliter Size: %d", v_filter.size());
 
   auto& fc_output = ops[start_index + kFCIndex].GetOutputTensor(0);
-  auto& q = tensor_pool.CloneNativeTensorFrom(
-      fc_output,
-      {fc_output.GetDim(0), static_cast<uint32_t>(head_size * kNumHeads)});
+
   auto& k = tensor_pool.CloneNativeTensorFrom(
       fc_output,
       {fc_output.GetDim(0), static_cast<uint32_t>(head_size * kNumKVHeads)});
   auto& v = tensor_pool.CloneNativeTensorFrom(
       fc_output,
       {fc_output.GetDim(0), static_cast<uint32_t>(head_size * kNumKVHeads)});
-  EmplaceOpWithIO(new_ops, ops[start_index + kFCIndex],
-                  {std::nullopt, q_filter_tensor}, {q});
+
   EmplaceOpWithIO(new_ops, ops[start_index + kFCIndex],
                   {std::nullopt, k_filter_tensor}, {k});
   EmplaceOpWithIO(new_ops, ops[start_index + kFCIndex],
                   {std::nullopt, v_filter_tensor}, {v});
-  // 3 Reshape
-  EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {q},
-                  {const_cast<TensorWrapper&>(
-                      ops[start_index + kSliceQIndex].GetOutputTensor(0))});
+  // 2 Reshape for KV
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {k},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceKIndex].GetOutputTensor(0))});
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {v},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceVIndex].GetOutputTensor(0))});
+  // Q
+  std::vector<TensorWrapper&> q_tensors;
+  q_tensors.reserve(kNumHeads);
+  for (int i = 1; i <= kNumHeads; ++i) {
+    std::vector<int8_t> q_filter(
+        filter_data.begin(),
+        filter_data.begin() + head_size * i * filter_tensor.GetDim(1));
+    auto& q_filter_tensor = tensor_pool.CreateStaticTensor(
+        filter_tensor.GetDataType(), filter_tensor.GetQuantParams(),
+        {static_cast<uint32_t>(head_size), filter_tensor.GetDim(1)},
+        q_filter.size() * sizeof(q_filter[0]), q_filter.data());
+    QNN_LOG_INFO("Q Fliter Size: %d", q_filter.size());
+    auto& q = tensor_pool.CloneNativeTensorFrom(
+        fc_output, {fc_output.GetDim(0), static_cast<uint32_t>(head_size)});
+    EmplaceOpWithIO(new_ops, ops[start_index + kFCIndex],
+                    {std::nullopt, q_filter_tensor}, {q});
+    auto& q_after_reshape =
+        tensor_pool.CloneNativeTensorFrom(q, {1, 1, q.GetDim(0), q.GetDim(1)});
+    q_tensors.emplace_back(q_after_reshape);
+    EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {q},
+                    {q_after_reshape});
+  }
+
   // Validate new graph.
   const bool is_valid =
       std::all_of(new_ops.begin(), new_ops.end(),
