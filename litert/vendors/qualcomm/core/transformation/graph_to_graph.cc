@@ -177,13 +177,13 @@ void GraphToGraphTransform(const G2GConfig g2g_option,
         QnnOpCode::kElementWiseMultiply,
         QnnOpCode::kElementWiseMultiply,
         QnnOpCode::kElementWiseAdd,
-        // RoPE for K
-        QnnOpCode::kStridedSlice,
-        QnnOpCode::kStridedSlice,
-        QnnOpCode::kConcat,
-        QnnOpCode::kElementWiseMultiply,
-        QnnOpCode::kElementWiseMultiply,
-        QnnOpCode::kElementWiseAdd,
+        // // RoPE for K
+        // QnnOpCode::kStridedSlice,
+        // QnnOpCode::kStridedSlice,
+        // QnnOpCode::kConcat,
+        // QnnOpCode::kElementWiseMultiply,
+        // QnnOpCode::kElementWiseMultiply,
+        // QnnOpCode::kElementWiseAdd,
     };
     Transform(validate_op_config, ops, tensor_pool, gemma3_qkv_prefill,
               SplitQKV);

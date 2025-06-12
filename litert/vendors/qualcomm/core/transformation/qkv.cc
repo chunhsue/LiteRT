@@ -18,10 +18,16 @@ constexpr size_t kQRmsNormIndex = 6;
 // constexpr size_t kKRmsNormIndex = 7;
 // constexpr size_t kQSlice1Index = 8;
 // constexpr size_t kQSlice2Index = 9;
-constexpr size_t kConcatIndex = 10;
-constexpr size_t kMulCosIndex = 11;
-constexpr size_t kMulSinIndex = 12;
-constexpr size_t kAddIndex = 13;
+constexpr size_t kQConcatIndex = 10;
+constexpr size_t kQMulCosIndex = 11;
+constexpr size_t kQMulSinIndex = 12;
+constexpr size_t kQAddIndex = 13;
+// constexpr size_t kKSlice1Index = 14;
+// constexpr size_t kKSlice2Index = 15;
+// constexpr size_t kKConcatIndex = 16;
+// constexpr size_t kKMulCosIndex = 17;
+// constexpr size_t kKMulSinIndex = 18;
+// constexpr size_t kKAddIndex = 19;
 constexpr size_t kMHAMulIndex = 25;
 constexpr size_t kMHAOffset = 11;
 constexpr size_t kNumHeads = 4;
@@ -34,6 +40,17 @@ void EmplaceOpWithIO(
   OpWrapper ret = source_op;
   ret.UpdateTensors(inputs, outputs);
   new_ops.emplace_back(ret);
+}
+
+void CloneNamespace(OpWrapper& source, std::vector<OpWrapper>& ops) {
+  std::string_view start_op_name = source.GetOpConfig().v1.name;
+  size_t pos = start_op_name.rfind("/");
+  if (pos == std::string_view::npos) {
+    return;
+  }
+  for (auto& op : ops) {
+    op.AddNamespace(start_op_name.substr(0, pos));
+  }
 }
 
 }  // namespace
@@ -84,12 +101,15 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
   EmplaceOpWithIO(new_ops, ops[start_index + kFCIndex],
                   {std::nullopt, v_filter_tensor}, {v});
   // 2 Reshape for KV
+  QNN_LOG_INFO("KVname: %s",
+               ops[start_index + kSliceKIndex].GetOutputTensor(0).GetName());
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {k},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceKIndex].GetOutputTensor(0))});
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {v},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceVIndex].GetOutputTensor(0))});
+
   // Q
   std::vector<TensorWrapper*> q_tensors;
   q_tensors.reserve(kNumHeads);
@@ -131,55 +151,57 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
         tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input, split_out_dims);
     auto split = BuildSplitOp(tensor_pool, {split_axis, q_rmsnorm_output},
                               {q_split_output1, q_split_output2}, num_split);
+    CloneNamespace(ops[start_index], split);
     std::move(split.begin(), split.end(), std::back_inserter(new_ops));
-    QNN_LOG_INFO("Concat %d", ops[start_index + kConcatIndex].GetOpCode());
+    QNN_LOG_INFO("Concat %d", ops[start_index + kQConcatIndex].GetOpCode());
     auto& q_concat_output = tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input);
-    EmplaceOpWithIO(new_ops, ops[start_index + kConcatIndex],
+    EmplaceOpWithIO(new_ops, ops[start_index + kQConcatIndex],
                     {q_split_output2, q_split_output1}, {q_concat_output});
     // Additional reshape.
-    const auto& cos_tensor = ops[start_index + kMulCosIndex].GetInputTensor(1);
+    const auto& cos_tensor = ops[start_index + kQMulCosIndex].GetInputTensor(1);
     auto& q_mul_cos_input = tensor_pool.CloneNativeTensorFrom(q_concat_output);
     auto reshape_cos = BuildReshapeOp(
         tensor_pool, {const_cast<::qnn::TensorWrapper&>(cos_tensor)},
         {q_mul_cos_input});
+    CloneNamespace(ops[start_index], reshape_cos);
     std::move(reshape_cos.begin(), reshape_cos.end(),
               std::back_inserter(new_ops));
-    QNN_LOG_INFO("MulCos %d", ops[start_index + kMulCosIndex].GetOpCode());
+    QNN_LOG_INFO("MulCos %d", ops[start_index + kQMulCosIndex].GetOpCode());
     auto& q_mul_cos_output = tensor_pool.CloneNativeTensorFrom(q_concat_output);
-    EmplaceOpWithIO(new_ops, ops[start_index + kMulCosIndex],
+    EmplaceOpWithIO(new_ops, ops[start_index + kQMulCosIndex],
                     {q_rmsnorm_output, q_mul_cos_input}, {q_mul_cos_output});
     // Additional reshape.
-    const auto& sin_tensor = ops[start_index + kMulSinIndex].GetInputTensor(1);
+    const auto& sin_tensor = ops[start_index + kQMulSinIndex].GetInputTensor(1);
     auto& q_mul_sin_input = tensor_pool.CloneNativeTensorFrom(q_concat_output);
     auto reshape_sin = BuildReshapeOp(
         tensor_pool, {const_cast<::qnn::TensorWrapper&>(sin_tensor)},
         {q_mul_sin_input});
+    CloneNamespace(ops[start_index], reshape_sin);
     std::move(reshape_sin.begin(), reshape_sin.end(),
               std::back_inserter(new_ops));
-    QNN_LOG_INFO("MulSin %d", ops[start_index + kMulSinIndex].GetOpCode());
+    QNN_LOG_INFO("MulSin %d", ops[start_index + kQMulSinIndex].GetOpCode());
     auto& q_mul_sin_output = tensor_pool.CloneNativeTensorFrom(q_concat_output);
-    EmplaceOpWithIO(new_ops, ops[start_index + kMulSinIndex],
+    EmplaceOpWithIO(new_ops, ops[start_index + kQMulSinIndex],
                     {q_concat_output, q_mul_sin_input}, {q_mul_sin_output});
-    QNN_LOG_INFO("Add %d abs %d", ops[start_index + kAddIndex].GetOpCode(),
-                 start_index + kAddIndex);
-    for (int k = 0; k < 60; ++k) {
-      QNN_LOG_INFO("What %d abs %d",
-                   ops[start_index + kAddIndex + k].GetOpCode(),
-                   start_index + kAddIndex + k);
-    }
+    QNN_LOG_INFO("Add %d abs %d", ops[start_index + kQAddIndex].GetOpCode(),
+                 start_index + kQAddIndex);
+    // for (int k = 0; k < 60; ++k) {
+    //   QNN_LOG_INFO("What %d abs %d",
+    //                ops[start_index + kQAddIndex + k].GetOpCode(),
+    //                start_index + kQAddIndex + k);
+    // }
     auto& q_add_output = tensor_pool.CloneNativeTensorFrom(q_mul_sin_output);
-    EmplaceOpWithIO(new_ops, ops[start_index + kAddIndex],
+    EmplaceOpWithIO(new_ops, ops[start_index + kQAddIndex],
                     {q_mul_cos_output, q_mul_sin_output}, {q_add_output});
     // Connect add output to each SHA input.
-    QNN_LOG_INFO(
-        "MatMul %d abs %d",
-        ops[start_index + kMHAMulIndex + kMHAOffset * (i - 1)].GetOpCode(),
-        start_index + kMHAMulIndex + kMHAOffset * (i - 1));
+    // QNN_LOG_INFO(
+    //     "MatMul %d abs %d",
+    //     ops[start_index + kMHAMulIndex + kMHAOffset * (i - 1)].GetOpCode(),
+    //     start_index + kMHAMulIndex + kMHAOffset * (i - 1));
     EmplaceOpWithIO(new_ops,
                     ops[start_index + kMHAMulIndex + kMHAOffset * (i - 1)],
                     {q_add_output, std::nullopt}, {std::nullopt});
   }
-
   // Validate new graph.
   // TODO(jiunkaiy): Disable bypassing Split int16 op validator.
   const bool is_valid =
@@ -190,19 +212,27 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
                            validate_op_config(op_wrapper);
                   });
   if (is_valid) {
+    // Adjust the name to avoid a name collision in the Qnn JSON dump.
+    for (size_t i = 0; i < new_ops.size(); ++i) {
+      new_ops[i].AppendName("qcg2g_" + std::to_string(i));
+    }
     size_t step_size = new_ops.size();
     // Erase Transpose->Reshape->Split->ElementWiseMul*4.
     for (int i = 3; i >= 0; i--) {
+      QNN_LOG_INFO(
+          "rm %d",
+          ops[start_index + kMHAMulIndex + kMHAOffset * i].GetOpCode());
       ops.erase(ops.begin() + start_index + kMHAMulIndex + kMHAOffset * i);
     }
+    // QNN_LOG_INFO("rm %d", ops[start_index + kMHAMulIndex - 3].GetOpCode());
     ops.erase(ops.begin() + start_index + kMHAMulIndex - 3,
               ops.begin() + start_index + kMHAMulIndex);
     // Replace the matched pattern with a newly generated subgraph.
     ops.insert(ops.begin() + start_index + pattern_size,
                std::make_move_iterator(new_ops.begin()),
                std::make_move_iterator(new_ops.end()));
-    ops.erase(ops.begin() + start_index,
-              ops.begin() + start_index + pattern_size);
+    ops.erase(ops.begin() + start_index, ops.begin() + start_index + 7);
+    ops.erase(ops.begin() + start_index + 1, ops.begin() + start_index + 7);
 
     return step_size;
   }
