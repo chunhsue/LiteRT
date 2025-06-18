@@ -15,7 +15,7 @@ constexpr size_t kReshape2Index = 2;
 constexpr size_t kSliceKIndex = 4;
 constexpr size_t kSliceVIndex = 5;
 constexpr size_t kQRmsNormIndex = 6;
-// constexpr size_t kKRmsNormIndex = 7;
+constexpr size_t kKRmsNormIndex = 7;
 // constexpr size_t kQSlice1Index = 8;
 // constexpr size_t kQSlice2Index = 9;
 constexpr size_t kQConcatIndex = 10;
@@ -59,7 +59,10 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
                 TensorPool& tensor_pool, size_t pattern_size) {
   std::vector<OpWrapper> new_ops;
   // 3 FC ops for QKV Projection
-  QNN_LOG_INFO("Found QKV");
+  if (ops[start_index + kFCIndex].GetOutputTensor(0).GetDim(0) == 1) {
+    return 1;
+  }
+  QNN_LOG_INFO("[G2G] QKV optimization");
   const auto& filter_tensor = ops[start_index + kFCIndex].GetInputTensor(1);
   auto filter = filter_tensor.GetStaticTensorData<int8_t>();
   auto filter_data = filter.value();
@@ -106,6 +109,8 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {k},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceKIndex].GetOutputTensor(0))});
+  EmplaceOpWithIO(new_ops, ops[start_index + kKRmsNormIndex],
+                  {std::nullopt, std::nullopt, std::nullopt}, {std::nullopt});
   EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {v},
                   {const_cast<TensorWrapper&>(
                       ops[start_index + kSliceVIndex].GetOutputTensor(0))});
@@ -133,7 +138,9 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
     EmplaceOpWithIO(new_ops, ops[start_index + kReshape2Index], {q},
                     {q_rmsnorm_input});
     QNN_LOG_INFO("RMSNorm %d", ops[start_index + kQRmsNormIndex].GetOpCode());
-    auto& q_rmsnorm_output = tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input);
+    auto& q_rmsnorm_output = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQRmsNormIndex].GetOutputTensor(0),
+        q_rmsnorm_input.GetDims());
     EmplaceOpWithIO(new_ops, ops[start_index + kQRmsNormIndex],
                     {q_rmsnorm_input, std::nullopt, std::nullopt},
                     {q_rmsnorm_output});
@@ -146,20 +153,22 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
     split_out_dims[3] = split_out_dims[3] / 2;
     const uint32_t num_split = 2;
     auto& q_split_output1 =
-        tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input, split_out_dims);
+        tensor_pool.CloneNativeTensorFrom(q_rmsnorm_output, split_out_dims);
     auto& q_split_output2 =
-        tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input, split_out_dims);
+        tensor_pool.CloneNativeTensorFrom(q_rmsnorm_output, split_out_dims);
     auto split = BuildSplitOp(tensor_pool, {split_axis, q_rmsnorm_output},
                               {q_split_output1, q_split_output2}, num_split);
     CloneNamespace(ops[start_index], split);
     std::move(split.begin(), split.end(), std::back_inserter(new_ops));
     QNN_LOG_INFO("Concat %d", ops[start_index + kQConcatIndex].GetOpCode());
-    auto& q_concat_output = tensor_pool.CloneNativeTensorFrom(q_rmsnorm_input);
+    auto& q_concat_output = tensor_pool.CloneNativeTensorFrom(q_rmsnorm_output);
     EmplaceOpWithIO(new_ops, ops[start_index + kQConcatIndex],
                     {q_split_output2, q_split_output1}, {q_concat_output});
     // Additional reshape.
     const auto& cos_tensor = ops[start_index + kQMulCosIndex].GetInputTensor(1);
-    auto& q_mul_cos_input = tensor_pool.CloneNativeTensorFrom(q_concat_output);
+    auto& q_mul_cos_input = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQMulCosIndex].GetInputTensor(1),
+        q_rmsnorm_output.GetDims());
     auto reshape_cos = BuildReshapeOp(
         tensor_pool, {const_cast<::qnn::TensorWrapper&>(cos_tensor)},
         {q_mul_cos_input});
@@ -167,12 +176,16 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
     std::move(reshape_cos.begin(), reshape_cos.end(),
               std::back_inserter(new_ops));
     QNN_LOG_INFO("MulCos %d", ops[start_index + kQMulCosIndex].GetOpCode());
-    auto& q_mul_cos_output = tensor_pool.CloneNativeTensorFrom(q_concat_output);
+    auto& q_mul_cos_output = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQMulSinIndex].GetOutputTensor(0),
+        q_rmsnorm_output.GetDims());
     EmplaceOpWithIO(new_ops, ops[start_index + kQMulCosIndex],
                     {q_rmsnorm_output, q_mul_cos_input}, {q_mul_cos_output});
     // Additional reshape.
     const auto& sin_tensor = ops[start_index + kQMulSinIndex].GetInputTensor(1);
-    auto& q_mul_sin_input = tensor_pool.CloneNativeTensorFrom(q_concat_output);
+    auto& q_mul_sin_input = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQMulSinIndex].GetInputTensor(1),
+        q_rmsnorm_output.GetDims());
     auto reshape_sin = BuildReshapeOp(
         tensor_pool, {const_cast<::qnn::TensorWrapper&>(sin_tensor)},
         {q_mul_sin_input});
@@ -180,24 +193,19 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
     std::move(reshape_sin.begin(), reshape_sin.end(),
               std::back_inserter(new_ops));
     QNN_LOG_INFO("MulSin %d", ops[start_index + kQMulSinIndex].GetOpCode());
-    auto& q_mul_sin_output = tensor_pool.CloneNativeTensorFrom(q_concat_output);
+    auto& q_mul_sin_output = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQMulSinIndex].GetOutputTensor(0),
+        q_rmsnorm_output.GetDims());
     EmplaceOpWithIO(new_ops, ops[start_index + kQMulSinIndex],
                     {q_concat_output, q_mul_sin_input}, {q_mul_sin_output});
     QNN_LOG_INFO("Add %d abs %d", ops[start_index + kQAddIndex].GetOpCode(),
                  start_index + kQAddIndex);
-    // for (int k = 0; k < 60; ++k) {
-    //   QNN_LOG_INFO("What %d abs %d",
-    //                ops[start_index + kQAddIndex + k].GetOpCode(),
-    //                start_index + kQAddIndex + k);
-    // }
-    auto& q_add_output = tensor_pool.CloneNativeTensorFrom(q_mul_sin_output);
+    auto& q_add_output = tensor_pool.CloneNativeTensorFrom(
+        ops[start_index + kQAddIndex].GetOutputTensor(0),
+        q_rmsnorm_output.GetDims());
     EmplaceOpWithIO(new_ops, ops[start_index + kQAddIndex],
                     {q_mul_cos_output, q_mul_sin_output}, {q_add_output});
     // Connect add output to each SHA input.
-    // QNN_LOG_INFO(
-    //     "MatMul %d abs %d",
-    //     ops[start_index + kMHAMulIndex + kMHAOffset * (i - 1)].GetOpCode(),
-    //     start_index + kMHAMulIndex + kMHAOffset * (i - 1));
     EmplaceOpWithIO(new_ops,
                     ops[start_index + kMHAMulIndex + kMHAOffset * (i - 1)],
                     {q_add_output, std::nullopt}, {std::nullopt});
@@ -231,9 +239,10 @@ size_t SplitQKV(std::function<bool(OpWrapper&)> validate_op_config,
     ops.insert(ops.begin() + start_index + pattern_size,
                std::make_move_iterator(new_ops.begin()),
                std::make_move_iterator(new_ops.end()));
-    ops.erase(ops.begin() + start_index, ops.begin() + start_index + 7);
-    ops.erase(ops.begin() + start_index + 1, ops.begin() + start_index + 7);
-
+    // ops.erase(ops.begin() + start_index, ops.begin() + start_index + 7);
+    // ops.erase(ops.begin() + start_index + 1, ops.begin() + start_index + 7);
+    ops.erase(ops.begin() + start_index,
+              ops.begin() + start_index + pattern_size);
     return step_size;
   }
   QNN_LOG_WARNING(
